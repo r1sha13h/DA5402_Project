@@ -1,0 +1,217 @@
+"""Apache Airflow DAG — SpendSense data ingestion and validation pipeline.
+
+This DAG runs daily (or on demand) and orchestrates:
+    1. generate_data   — produce synthetic CSV if no real data is present
+    2. validate_schema — check required columns and types
+    3. check_nulls     — detect and report null values
+    4. check_drift     — compare distribution to baseline (if baseline exists)
+    5. trigger_dvc     — run `dvc repro` to retrain model when data changes
+
+Schedule: @daily  (configurable via AIRFLOW_INGESTION_SCHEDULE env var)
+"""
+
+import json
+import logging
+import os
+import subprocess
+import sys
+from datetime import datetime, timedelta
+
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+
+logger = logging.getLogger(__name__)
+
+PROJECT_ROOT = os.environ.get("PROJECT_ROOT", "/opt/airflow/project")
+RAW_PATH = os.path.join(PROJECT_ROOT, "data", "raw", "transactions.csv")
+INGESTED_PATH = os.path.join(PROJECT_ROOT, "data", "ingested", "transactions.csv")
+BASELINE_PATH = os.path.join(PROJECT_ROOT, "data", "ingested", "baseline_stats.json")
+
+DEFAULT_ARGS = {
+    "owner": "spendsense",
+    "depends_on_past": False,
+    "email_on_failure": False,
+    "email_on_retry": False,
+    "retries": 1,
+    "retry_delay": timedelta(minutes=5),
+    "start_date": datetime(2024, 1, 1),
+}
+
+SCHEDULE = os.environ.get("AIRFLOW_INGESTION_SCHEDULE", "@daily")
+
+
+# ── Task callables ────────────────────────────────────────────────────────────
+
+def task_generate_data(**context):
+    """Generate synthetic data if the raw CSV does not exist."""
+    if os.path.exists(RAW_PATH):
+        logger.info("Raw data already exists at %s — skipping generation.", RAW_PATH)
+        return {"generated": False, "path": RAW_PATH}
+
+    logger.info("Raw data not found. Generating synthetic dataset ...")
+    sys.path.insert(0, PROJECT_ROOT)
+    from src.data.generate_synthetic import main as gen_main  # noqa: PLC0415
+
+    gen_main(output_path=RAW_PATH, n_samples=6000, seed=42)
+    logger.info("Synthetic data written to %s", RAW_PATH)
+    return {"generated": True, "path": RAW_PATH}
+
+
+def task_validate_schema(**context):
+    """Validate that the raw CSV has required columns and correct dtypes."""
+    import pandas as pd  # noqa: PLC0415
+
+    if not os.path.exists(RAW_PATH):
+        raise FileNotFoundError(f"Raw data not found: {RAW_PATH}")
+
+    df = pd.read_csv(RAW_PATH)
+    required = {"description", "amount", "category"}
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(f"Schema validation failed — missing columns: {missing}")
+
+    if not all(pd.api.types.is_string_dtype(df[c]) for c in ["description", "category"]):
+        raise TypeError("Columns 'description' and 'category' must be string type.")
+    if not pd.api.types.is_numeric_dtype(df["amount"]):
+        raise TypeError("Column 'amount' must be numeric.")
+
+    logger.info("Schema validation passed. Rows: %d", len(df))
+    return {"rows": len(df), "columns": list(df.columns)}
+
+
+def task_check_nulls(**context):
+    """Check for null values in required columns and report counts."""
+    import pandas as pd  # noqa: PLC0415
+
+    df = pd.read_csv(RAW_PATH)
+    null_counts = df[["description", "amount", "category"]].isnull().sum().to_dict()
+    total_nulls = sum(null_counts.values())
+
+    if total_nulls > 0:
+        logger.warning("Null values detected: %s", null_counts)
+    else:
+        logger.info("Null check passed — no nulls found.")
+
+    return {"null_counts": null_counts, "total_nulls": int(total_nulls)}
+
+
+def task_check_drift(**context):
+    """Compare current data distribution against saved baseline stats.
+
+    Logs a warning if category distribution shifts by more than 10%.
+    """
+    import pandas as pd  # noqa: PLC0415
+
+    df = pd.read_csv(RAW_PATH)
+    current_dist = df["category"].value_counts(normalize=True).to_dict()
+
+    if not os.path.exists(BASELINE_PATH):
+        logger.info("No baseline found — skipping drift check (first run).")
+        return {"drift_detected": False, "reason": "no baseline"}
+
+    with open(BASELINE_PATH, "r") as fh:
+        baseline = json.load(fh)
+
+    baseline_dist = baseline.get("category_distribution", {})
+    total_baseline = sum(baseline_dist.values()) or 1
+    baseline_norm = {k: v / total_baseline for k, v in baseline_dist.items()}
+
+    drift_flags = {}
+    for cat in set(list(current_dist.keys()) + list(baseline_norm.keys())):
+        cur = current_dist.get(cat, 0.0)
+        base = baseline_norm.get(cat, 0.0)
+        shift = abs(cur - base)
+        if shift > 0.10:
+            drift_flags[cat] = {"baseline": round(base, 4), "current": round(cur, 4),
+                                 "shift": round(shift, 4)}
+
+    if drift_flags:
+        logger.warning("Data drift detected: %s", drift_flags)
+    else:
+        logger.info("No significant data drift detected.")
+
+    return {"drift_detected": bool(drift_flags), "drift_details": drift_flags}
+
+
+def task_run_ingest(**context):
+    """Run the DVC ingest stage to validate and write the ingested CSV."""
+    result = subprocess.run(
+        ["python", "-m", "src.data.ingest"],
+        capture_output=True,
+        text=True,
+        cwd=PROJECT_ROOT,
+    )
+    logger.info("STDOUT: %s", result.stdout)
+    if result.returncode != 0:
+        raise RuntimeError(f"Ingest script failed:\n{result.stderr}")
+    return {"returncode": result.returncode}
+
+
+def task_trigger_dvc(**context):
+    """Trigger `dvc repro` to re-run the ML pipeline when data changes.
+
+    Skips if DVC is not installed or if no data change is detected.
+    """
+    ti = context["ti"]
+    drift_result = ti.xcom_pull(task_ids="check_drift")
+    drift_detected = drift_result.get("drift_detected", False) if drift_result else False
+
+    if not drift_detected:
+        logger.info("No drift detected — skipping dvc repro.")
+        return {"skipped": True}
+
+    result = subprocess.run(
+        ["dvc", "repro"],
+        capture_output=True,
+        text=True,
+        cwd=PROJECT_ROOT,
+    )
+    logger.info("DVC stdout: %s", result.stdout[:2000])
+    if result.returncode != 0:
+        logger.warning("DVC repro exited with code %d: %s", result.returncode, result.stderr[:500])
+    return {"returncode": result.returncode, "triggered": True}
+
+
+# ── DAG definition ────────────────────────────────────────────────────────────
+
+with DAG(
+    dag_id="spendsense_ingestion_pipeline",
+    default_args=DEFAULT_ARGS,
+    description="SpendSense data ingestion, validation, and drift detection",
+    schedule_interval=SCHEDULE,
+    catchup=False,
+    tags=["spendsense", "data-engineering", "mlops"],
+) as dag:
+
+    generate_data = PythonOperator(
+        task_id="generate_data",
+        python_callable=task_generate_data,
+    )
+
+    validate_schema = PythonOperator(
+        task_id="validate_schema",
+        python_callable=task_validate_schema,
+    )
+
+    check_nulls = PythonOperator(
+        task_id="check_nulls",
+        python_callable=task_check_nulls,
+    )
+
+    check_drift = PythonOperator(
+        task_id="check_drift",
+        python_callable=task_check_drift,
+    )
+
+    run_ingest = PythonOperator(
+        task_id="run_ingest",
+        python_callable=task_run_ingest,
+    )
+
+    trigger_dvc = PythonOperator(
+        task_id="trigger_dvc",
+        python_callable=task_trigger_dvc,
+    )
+
+    # Pipeline dependency chain
+    generate_data >> validate_schema >> check_nulls >> check_drift >> run_ingest >> trigger_dvc

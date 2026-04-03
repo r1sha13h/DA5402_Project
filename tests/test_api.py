@@ -1,0 +1,138 @@
+"""Unit tests for the FastAPI backend endpoints."""
+
+import os
+import pickle
+import sys
+import tempfile
+from unittest.mock import MagicMock, patch
+
+import pytest
+from fastapi.testclient import TestClient
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+
+# ── Mock predictor before importing app ───────────────────────────────────────
+
+@pytest.fixture(scope="module")
+def mock_predictor():
+    """Patch the predictor singleton so tests do not require a trained model."""
+    mock = MagicMock()
+    mock.is_ready = True
+    mock.predict.return_value = (
+        "Food & Dining",
+        0.91,
+        {
+            "Food & Dining": 0.91, "Transport": 0.03, "Utilities": 0.02,
+            "Entertainment": 0.01, "Shopping": 0.01, "Healthcare": 0.01,
+            "Education": 0.00, "Travel": 0.00, "Housing": 0.00, "Finance": 0.01,
+        },
+    )
+    mock.predict_batch.return_value = [
+        (
+            "Food & Dining",
+            0.88,
+            {"Food & Dining": 0.88, "Transport": 0.05, "Utilities": 0.03,
+             "Entertainment": 0.01, "Shopping": 0.01, "Healthcare": 0.01,
+             "Education": 0.00, "Travel": 0.00, "Housing": 0.00, "Finance": 0.01},
+        ),
+        (
+            "Transport",
+            0.92,
+            {"Food & Dining": 0.02, "Transport": 0.92, "Utilities": 0.02,
+             "Entertainment": 0.01, "Shopping": 0.01, "Healthcare": 0.01,
+             "Education": 0.00, "Travel": 0.00, "Housing": 0.00, "Finance": 0.01},
+        ),
+    ]
+    return mock
+
+
+@pytest.fixture(scope="module")
+def client(mock_predictor):
+    """TestClient with the predictor patched to avoid model loading."""
+    with patch("backend.app.predictor.predictor", mock_predictor):
+        with patch("backend.app.main.predictor", mock_predictor):
+            from backend.app.main import app  # noqa: PLC0415
+            with TestClient(app, raise_server_exceptions=True) as c:
+                yield c
+
+
+# ── Tests: /health ────────────────────────────────────────────────────────────
+
+def test_health_returns_200(client):
+    """GET /health returns HTTP 200 and status ok."""
+    resp = client.get("/health")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "ok"
+    assert "version" in body
+
+
+# ── Tests: /ready ─────────────────────────────────────────────────────────────
+
+def test_ready_returns_200_when_model_loaded(client):
+    """GET /ready returns 200 when model is loaded."""
+    resp = client.get("/ready")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ready"] is True
+    assert body["model_loaded"] is True
+
+
+# ── Tests: POST /predict ──────────────────────────────────────────────────────
+
+def test_predict_single_returns_category(client):
+    """POST /predict returns predicted_category and confidence."""
+    resp = client.post("/predict", json={"description": "Zomato food delivery"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "predicted_category" in body
+    assert "confidence" in body
+    assert "all_scores" in body
+    assert 0.0 <= body["confidence"] <= 1.0
+
+
+def test_predict_returns_all_scores(client):
+    """Response all_scores contains an entry for every category."""
+    resp = client.post("/predict", json={"description": "Zomato food delivery"})
+    scores = resp.json()["all_scores"]
+    assert len(scores) == 10
+
+
+def test_predict_empty_description_returns_422(client):
+    """Empty description string triggers Pydantic validation error (422)."""
+    resp = client.post("/predict", json={"description": ""})
+    assert resp.status_code == 422
+
+
+def test_predict_missing_body_returns_422(client):
+    """Missing JSON body returns 422."""
+    resp = client.post("/predict", json={})
+    assert resp.status_code == 422
+
+
+# ── Tests: POST /predict/batch ────────────────────────────────────────────────
+
+def test_predict_batch_returns_correct_count(client):
+    """Batch response total matches the number of input descriptions."""
+    resp = client.post("/predict/batch",
+                       json={"descriptions": ["Zomato payment", "Uber ride"]})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 2
+    assert len(body["results"]) == 2
+
+
+def test_predict_batch_empty_list_returns_422(client):
+    """Empty list triggers Pydantic min_items validation (422)."""
+    resp = client.post("/predict/batch", json={"descriptions": []})
+    assert resp.status_code == 422
+
+
+# ── Tests: GET /metrics ───────────────────────────────────────────────────────
+
+def test_metrics_endpoint_returns_prometheus_format(client):
+    """GET /metrics returns Prometheus text format (contains # HELP)."""
+    resp = client.get("/metrics")
+    assert resp.status_code == 200
+    assert "spendsense" in resp.text

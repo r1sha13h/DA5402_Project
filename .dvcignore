@@ -1,0 +1,21 @@
+# DVC ignore file — patterns listed here are excluded from DVC tracking
+
+# Python cache
+**/__pycache__
+**/*.pyc
+**/*.pyo
+
+# Jupyter notebooks
+**/*.ipynb
+
+# Editor files
+.idea
+.vscode
+*.swp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

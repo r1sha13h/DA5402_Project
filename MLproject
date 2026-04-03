@@ -1,0 +1,35 @@
+name: SpendSense
+
+conda_env: conda.yaml
+
+entry_points:
+  main:
+    parameters:
+      embed_dim: {type: int, default: 128}
+      hidden_dim: {type: int, default: 256}
+      num_layers: {type: int, default: 2}
+      dropout: {type: float, default: 0.3}
+      batch_size: {type: int, default: 64}
+      learning_rate: {type: float, default: 0.001}
+      epochs: {type: int, default: 20}
+      seed: {type: int, default: 42}
+    command: >
+      python src/models/train.py
+
+  evaluate:
+    command: python src/models/evaluate.py
+
+  preprocess:
+    command: python src/data/preprocess.py
+
+  ingest:
+    command: python src/data/ingest.py
+
+  generate:
+    parameters:
+      n_samples: {type: int, default: 6000}
+      seed: {type: int, default: 42}
+    command: >
+      python src/data/generate_synthetic.py
+      --n-samples {n_samples}
+      --seed {seed}

@@ -1,0 +1,24 @@
+preprocess:
+  max_vocab_size: 10000
+  max_seq_len: 50
+  test_size: 0.15
+  val_size: 0.15
+  min_freq: 2
+  seed: 42
+
+train:
+  embed_dim: 128
+  hidden_dim: 256
+  num_layers: 2
+  dropout: 0.3
+  batch_size: 64
+  learning_rate: 0.001
+  epochs: 20
+  early_stopping_patience: 3
+  seed: 42
+
+data:
+  raw_path: data/raw/transactions.csv
+  ingested_path: data/ingested/transactions.csv
+  processed_dir: data/processed
+  n_synthetic_samples: 6000
