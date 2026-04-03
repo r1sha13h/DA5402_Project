@@ -1,0 +1,138 @@
+version: "3.9"
+
+# ── Shared volumes ─────────────────────────────────────────────────────────────
+volumes:
+  mlflow_data:
+  airflow_db:
+  prometheus_data:
+  grafana_data:
+
+# ── Shared network ─────────────────────────────────────────────────────────────
+networks:
+  spendsense:
+    driver: bridge
+
+services:
+
+  # ── 1. MLflow Tracking Server ────────────────────────────────────────────────
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.13.0
+    container_name: spendsense_mlflow
+    networks: [spendsense]
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow_data:/mlruns
+    command: >
+      mlflow server
+      --backend-store-uri sqlite:///mlruns/mlflow.db
+      --default-artifact-root /mlruns/artifacts
+      --host 0.0.0.0
+      --port 5000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ── 2. FastAPI Backend ───────────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: spendsense_backend
+    networks: [spendsense]
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data:ro
+      - ./models:/app/models:ro
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - MODEL_PATH=/app/models/best_model.pt
+      - VOCAB_PATH=/app/data/processed/vocab.pkl
+      - LABEL_ENCODER_PATH=/app/data/processed/label_encoder.pkl
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+
+  # ── 3. Streamlit Frontend ────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: spendsense_frontend
+    networks: [spendsense]
+    ports:
+      - "8501:8501"
+    environment:
+      - BACKEND_URL=http://backend:8000
+      - MLFLOW_URL=http://mlflow:5000
+      - AIRFLOW_URL=http://airflow:8080
+      - GRAFANA_URL=http://grafana:3000
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  # ── 4. Apache Airflow (standalone / LocalExecutor) ───────────────────────────
+  airflow:
+    build:
+      context: .
+      dockerfile: airflow/Dockerfile
+    container_name: spendsense_airflow
+    networks: [spendsense]
+    ports:
+      - "8080:8080"
+    volumes:
+      - airflow_db:/opt/airflow
+      - ./data:/opt/airflow/project/data
+      - ./models:/opt/airflow/project/models
+      - ./src:/opt/airflow/project/src
+      - ./params.yaml:/opt/airflow/project/params.yaml
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////opt/airflow/airflow.db
+      - PROJECT_ROOT=/opt/airflow/project
+    command: >
+      bash -c "airflow db migrate &&
+               airflow users create --username admin --password admin
+                 --firstname Admin --lastname User --role Admin
+                 --email admin@spendsense.local || true &&
+               airflow standalone"
+
+  # ── 5. Prometheus ────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    container_name: spendsense_prometheus
+    networks: [spendsense]
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=7d"
+
+  # ── 6. Grafana ───────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.3
+    container_name: spendsense_grafana
+    networks: [spendsense]
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    depends_on:
+      - prometheus

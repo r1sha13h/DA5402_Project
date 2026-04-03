@@ -1,0 +1,83 @@
+stages:
+  generate:
+    cmd: python src/data/generate_synthetic.py
+      --output ${data.raw_path}
+      --n-samples ${data.n_synthetic_samples}
+      --seed ${preprocess.seed}
+    deps:
+      - src/data/generate_synthetic.py
+    params:
+      - data.raw_path
+      - data.n_synthetic_samples
+      - preprocess.seed
+    outs:
+      - data/raw/transactions.csv
+
+  ingest:
+    cmd: python src/data/ingest.py
+    deps:
+      - src/data/ingest.py
+      - data/raw/transactions.csv
+    params:
+      - data.raw_path
+      - data.ingested_path
+    outs:
+      - data/ingested/transactions.csv
+      - data/ingested/baseline_stats.json
+
+  preprocess:
+    cmd: python src/data/preprocess.py
+    deps:
+      - src/data/preprocess.py
+      - data/ingested/transactions.csv
+    params:
+      - preprocess
+      - data.ingested_path
+      - data.processed_dir
+    outs:
+      - data/processed/X_train.npy
+      - data/processed/X_val.npy
+      - data/processed/X_test.npy
+      - data/processed/y_train.npy
+      - data/processed/y_val.npy
+      - data/processed/y_test.npy
+      - data/processed/vocab.pkl
+      - data/processed/label_encoder.pkl
+      - data/processed/feature_baseline.json
+
+  train:
+    cmd: python src/models/train.py
+    deps:
+      - src/models/train.py
+      - src/models/model.py
+      - data/processed/X_train.npy
+      - data/processed/X_val.npy
+      - data/processed/y_train.npy
+      - data/processed/y_val.npy
+      - data/processed/vocab.pkl
+      - data/processed/label_encoder.pkl
+    params:
+      - train
+      - data.processed_dir
+    outs:
+      - models/best_model.pt
+    metrics:
+      - metrics/train_metrics.json:
+          cache: false
+
+  evaluate:
+    cmd: python src/models/evaluate.py
+    deps:
+      - src/models/evaluate.py
+      - src/models/model.py
+      - models/best_model.pt
+      - data/processed/X_test.npy
+      - data/processed/y_test.npy
+      - data/processed/vocab.pkl
+      - data/processed/label_encoder.pkl
+    params:
+      - train
+      - data.processed_dir
+    metrics:
+      - metrics/eval_metrics.json:
+          cache: false

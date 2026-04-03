@@ -1,0 +1,163 @@
+name: SpendSense CI/CD
+
+# ── Triggers ──────────────────────────────────────────────────────────────────
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      run_full_pipeline:
+        description: "Run full DVC pipeline (train + evaluate)"
+        required: false
+        default: "false"
+        type: choice
+        options: ["true", "false"]
+
+# ── Defaults ──────────────────────────────────────────────────────────────────
+defaults:
+  run:
+    shell: bash
+
+# ── Jobs ──────────────────────────────────────────────────────────────────────
+jobs:
+
+  # ── Job 1: Lint + Unit Tests ───────────────────────────────────────────────
+  test:
+    name: Lint & Unit Tests
+    runs-on: self-hosted          # LOCAL runner required (no cloud allowed)
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Lint with flake8
+        run: |
+          flake8 src/ backend/ tests/ \
+            --max-line-length=100 \
+            --exclude=__pycache__ \
+            --count --statistics
+
+      - name: Run unit tests with coverage
+        run: |
+          pytest tests/ -v \
+            --cov=src --cov=backend \
+            --cov-report=term-missing \
+            --cov-fail-under=60
+
+  # ── Job 2: DVC ML Pipeline ─────────────────────────────────────────────────
+  ml-pipeline:
+    name: DVC Reproduce (ML Pipeline)
+    runs-on: self-hosted
+    needs: test
+    if: >
+      github.ref == 'refs/heads/main' ||
+      github.event_name == 'workflow_dispatch' && inputs.run_full_pipeline == 'true'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: DVC pull cached stages
+        run: dvc pull --run-cache || echo "No remote cache available, running from scratch"
+
+      - name: Run DVC pipeline
+        env:
+          MLFLOW_TRACKING_URI: http://localhost:5000
+        run: dvc repro
+
+      - name: Check evaluation metrics
+        run: |
+          python - <<'EOF'
+          import json, sys
+          with open("metrics/eval_metrics.json") as f:
+              m = json.load(f)
+          f1 = m.get("test_f1_macro", 0)
+          acc = m.get("test_accuracy", 0)
+          print(f"Test F1 (macro): {f1:.4f}")
+          print(f"Test accuracy:   {acc:.4f}")
+          if f1 < 0.70:
+              print(f"FAIL: test_f1_macro={f1:.4f} below threshold 0.70")
+              sys.exit(1)
+          print("PASS: metrics meet acceptance criteria.")
+          EOF
+
+      - name: Push DVC artifacts to cache
+        run: dvc push || echo "No DVC remote configured, skipping push"
+
+  # ── Job 3: Docker Build & Smoke Test ──────────────────────────────────────
+  docker:
+    name: Docker Build & Smoke Tests
+    runs-on: self-hosted
+    needs: ml-pipeline
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Docker images
+        run: docker compose build --no-cache
+
+      - name: Start services
+        run: docker compose up -d backend mlflow prometheus
+
+      - name: Wait for backend to be ready
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8000/health > /dev/null; then
+              echo "Backend is ready."
+              break
+            fi
+            echo "Waiting for backend... ($i/30)"
+            sleep 5
+          done
+
+      - name: Smoke test — /health
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health)
+          [ "$STATUS" == "200" ] || (echo "Health check failed: HTTP $STATUS" && exit 1)
+
+      - name: Smoke test — /ready
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/ready)
+          [ "$STATUS" == "200" ] || echo "Ready check HTTP $STATUS (model may still be loading)"
+
+      - name: Smoke test — /predict
+        run: |
+          RESP=$(curl -s -X POST http://localhost:8000/predict \
+            -H "Content-Type: application/json" \
+            -d '{"description": "Zomato food delivery payment"}')
+          echo "$RESP"
+          echo "$RESP" | python -c "
+          import json, sys
+          d = json.load(sys.stdin)
+          assert 'predicted_category' in d, 'Missing predicted_category'
+          assert 'confidence' in d, 'Missing confidence'
+          print('Prediction smoke test PASSED.')
+          "
+
+      - name: Smoke test — /metrics (Prometheus)
+        run: |
+          curl -sf http://localhost:8000/metrics | grep "spendsense_" || \
+            (echo "Prometheus metrics not found" && exit 1)
+
+      - name: Tear down services
+        if: always()
+        run: docker compose down -v

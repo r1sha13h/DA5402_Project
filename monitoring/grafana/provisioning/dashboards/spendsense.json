@@ -1,0 +1,117 @@
+{
+  "title": "SpendSense — MLOps Dashboard",
+  "uid": "spendsense-main",
+  "version": 1,
+  "schemaVersion": 39,
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Request Rate (req/s)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "rate(spendsense_requests_total[1m])",
+          "legendFormat": "{{endpoint}} {{status}}",
+          "datasource": "Prometheus"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "P95 Latency (seconds)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(spendsense_request_latency_seconds_bucket[1m]))",
+          "legendFormat": "p95 {{endpoint}}",
+          "datasource": "Prometheus"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Error Rate",
+      "type": "gauge",
+      "gridPos": { "x": 0, "y": 8, "w": 6, "h": 6 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "thresholds": {
+          "steps": [
+            { "color": "green", "value": 0 },
+            { "color": "yellow", "value": 0.02 },
+            { "color": "red", "value": 0.05 }
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "spendsense_error_rate",
+          "legendFormat": "Error Rate",
+          "datasource": "Prometheus"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Model Loaded",
+      "type": "stat",
+      "gridPos": { "x": 6, "y": 8, "w": 6, "h": 6 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "spendsense_model_loaded",
+          "legendFormat": "Model Ready",
+          "datasource": "Prometheus"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Predictions by Category",
+      "type": "piechart",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "spendsense_predictions_by_category_total",
+          "legendFormat": "{{category}}",
+          "datasource": "Prometheus"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Total Requests",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 14, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "expr": "sum(spendsense_requests_total)",
+          "legendFormat": "Total",
+          "datasource": "Prometheus"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Batch Size Distribution",
+      "type": "histogram",
+      "gridPos": { "x": 6, "y": 14, "w": 18, "h": 6 },
+      "targets": [
+        {
+          "expr": "rate(spendsense_batch_size_bucket[5m])",
+          "legendFormat": "{{le}}",
+          "datasource": "Prometheus"
+        }
+      ]
+    }
+  ]
+}
