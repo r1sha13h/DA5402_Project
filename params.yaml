@@ -21,4 +21,3 @@ data:
   raw_path: data/raw/transactions.csv
   ingested_path: data/ingested/transactions.csv
   processed_dir: data/processed
-  n_synthetic_samples: 6000

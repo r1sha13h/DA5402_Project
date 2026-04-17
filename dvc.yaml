@@ -1,18 +1,4 @@
 stages:
-  generate:
-    cmd: python -u src/data/generate_synthetic.py
-      --output ${data.raw_path}
-      --n-samples ${data.n_synthetic_samples}
-      --seed ${preprocess.seed}
-    deps:
-      - src/data/generate_synthetic.py
-    params:
-      - data.raw_path
-      - data.n_synthetic_samples
-      - preprocess.seed
-    outs:
-      - data/raw/transactions.csv
-
   ingest:
     cmd: python -u src/data/ingest.py
     deps:

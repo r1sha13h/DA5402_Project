@@ -37,6 +37,7 @@ class SpendSensePredictor:
         self.vocab: Optional[dict] = None
         self.label_encoder = None
         self.max_seq_len: int = _MAX_SEQ_LEN
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     def load(self) -> bool:
         """Load all artefacts from disk.
@@ -69,12 +70,12 @@ class SpendSensePredictor:
                 num_classes=num_classes,
                 num_layers=tp["num_layers"],
                 dropout=tp["dropout"],
-            )
+            ).to(self.device)
             self.model.load_state_dict(
-                torch.load(_MODEL_PATH, map_location="cpu", weights_only=True)
+                torch.load(_MODEL_PATH, map_location=self.device, weights_only=True)
             )
             self.model.eval()
-            logger.info("Model loaded successfully from %s", _MODEL_PATH)
+            logger.info("Model loaded on %s from %s", self.device, _MODEL_PATH)
             return True
         except Exception as exc:
             logger.exception("Failed to load model: %s", exc)
@@ -122,11 +123,11 @@ class SpendSensePredictor:
             raise RuntimeError("Model is not loaded.")
 
         indices = self._tokenize(description)
-        x = torch.tensor([indices], dtype=torch.long)
+        x = torch.tensor([indices], dtype=torch.long).to(self.device)
 
         with torch.no_grad():
             logits = self.model(x)
-            probs = torch.softmax(logits, dim=1).squeeze().numpy()
+            probs = torch.softmax(logits, dim=1).squeeze().cpu().numpy()
 
         pred_idx = int(np.argmax(probs))
         predicted_category = self.label_encoder.classes_[pred_idx]
@@ -155,11 +156,11 @@ class SpendSensePredictor:
             raise RuntimeError("Model is not loaded.")
 
         encoded = [self._tokenize(d) for d in descriptions]
-        x = torch.tensor(encoded, dtype=torch.long)
+        x = torch.tensor(encoded, dtype=torch.long).to(self.device)
 
         with torch.no_grad():
             logits = self.model(x)
-            probs = torch.softmax(logits, dim=1).numpy()
+            probs = torch.softmax(logits, dim=1).cpu().numpy()
 
         results = []
         for i, row in enumerate(probs):

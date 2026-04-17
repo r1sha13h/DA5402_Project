@@ -58,6 +58,9 @@ def evaluate(processed_dir: str, params: dict) -> dict:
     num_classes = len(label_encoder.classes_)
     vocab_size = len(vocab)
 
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    logger.info("Using device: %s", device)
+
     model = BiLSTMClassifier(
         vocab_size=vocab_size,
         embed_dim=tp["embed_dim"],
@@ -65,14 +68,14 @@ def evaluate(processed_dir: str, params: dict) -> dict:
         num_classes=num_classes,
         num_layers=tp["num_layers"],
         dropout=tp["dropout"],
-    )
+    ).to(device)
 
     model_path = os.path.join("models", "best_model.pt")
     if not os.path.exists(model_path):
         logger.error("Trained model not found at %s. Run training first.", model_path)
         sys.exit(1)
 
-    model.load_state_dict(torch.load(model_path, map_location="cpu", weights_only=True))
+    model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
     model.eval()
 
     X_tensor = torch.tensor(X_test, dtype=torch.long)
@@ -80,9 +83,9 @@ def evaluate(processed_dir: str, params: dict) -> dict:
     all_probs = []
     with torch.no_grad():
         for i in tqdm(range(0, len(X_tensor), batch_size), desc="Evaluating", unit="batch"):
-            batch = X_tensor[i:i + batch_size]
+            batch = X_tensor[i:i + batch_size].to(device)
             logits = model(batch)
-            all_probs.append(torch.softmax(logits, dim=1).numpy())
+            all_probs.append(torch.softmax(logits, dim=1).cpu().numpy())
     probs = np.concatenate(all_probs, axis=0)
     y_pred = np.argmax(probs, axis=1)
 

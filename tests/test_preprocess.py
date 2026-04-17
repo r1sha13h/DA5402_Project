@@ -104,12 +104,14 @@ def test_preprocess_creates_all_artefacts():
     from src.data.preprocess import preprocess  # noqa: PLC0415
 
     categories = [
-        "Food & Dining", "Transport", "Utilities", "Entertainment", "Shopping",
-        "Healthcare", "Education", "Travel", "Housing", "Finance",
+        "Food & Dining", "Transportation", "Shopping & Retail",
+        "Entertainment & Recreation", "Healthcare & Medical",
+        "Utilities & Services", "Financial Services", "Income",
+        "Government & Legal", "Charity & Donations",
     ]
     records = []
     for i, cat in enumerate(categories * 10):
-        records.append({"description": f"transaction {i} for {cat}", "amount": 100.0,
+        records.append({"description": f"transaction {i} for {cat}",
                         "category": cat})
     df = pd.DataFrame(records)
 

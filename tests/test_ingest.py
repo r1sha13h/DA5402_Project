@@ -18,8 +18,7 @@ from src.data.ingest import validate_categories, validate_nulls, validate_schema
 def valid_df():
     return pd.DataFrame({
         "description": ["Zomato payment", "Uber ride", "Netflix subscription"],
-        "amount": [350.0, 120.0, 499.0],
-        "category": ["Food & Dining", "Transport", "Entertainment"],
+        "category": ["Food & Dining", "Transportation", "Entertainment & Recreation"],
     })
 
 
@@ -27,7 +26,6 @@ def valid_df():
 def df_missing_column():
     return pd.DataFrame({
         "description": ["Zomato payment"],
-        "amount": [350.0],
     })
 
 
@@ -35,8 +33,7 @@ def df_missing_column():
 def df_with_nulls():
     return pd.DataFrame({
         "description": ["Zomato payment", None, "Uber ride"],
-        "amount": [350.0, 120.0, None],
-        "category": ["Food & Dining", "Transport", "Transport"],
+        "category": ["Food & Dining", "Transportation", "Transportation"],
     })
 
 
@@ -44,7 +41,6 @@ def df_with_nulls():
 def df_unknown_category():
     return pd.DataFrame({
         "description": ["Some transaction"],
-        "amount": [100.0],
         "category": ["Unknown Category"],
     })
 
@@ -62,10 +58,10 @@ def test_validate_schema_raises_on_missing_column(df_missing_column):
         validate_schema(df_missing_column)
 
 
-def test_validate_schema_raises_on_wrong_amount_type():
-    """ValueError raised when amount column contains non-numeric data."""
+def test_validate_schema_raises_on_wrong_description_type():
+    """ValueError raised when description column contains non-string data."""
     df = pd.DataFrame({
-        "description": ["Zomato"], "amount": ["not_a_number"], "category": ["Food & Dining"]
+        "description": [123], "category": ["Food & Dining"]
     })
     with pytest.raises((ValueError, TypeError)):
         validate_schema(df)
@@ -108,8 +104,7 @@ def test_ingest_writes_output():
 
     df = pd.DataFrame({
         "description": ["Zomato payment", "Uber trip", "BESCOM bill"],
-        "amount": [200.0, 100.0, 500.0],
-        "category": ["Food & Dining", "Transport", "Utilities"],
+        "category": ["Food & Dining", "Transportation", "Utilities & Services"],
     })
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -123,4 +118,4 @@ def test_ingest_writes_output():
         assert os.path.exists(out_path)
         result = pd.read_csv(out_path)
         assert len(result) == 3
-        assert set(result.columns) >= {"description", "amount", "category"}
+        assert set(result.columns) >= {"description", "category"}

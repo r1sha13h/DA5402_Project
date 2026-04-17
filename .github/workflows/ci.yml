@@ -74,8 +74,22 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install torch --index-url https://download.pytorch.org/whl/cu128
           pip install -r requirements.txt
+
+      - name: Download HuggingFace dataset
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python -c "
+from datasets import load_dataset
+import os, pandas as pd
+os.makedirs('data/raw', exist_ok=True)
+ds = load_dataset('mitulshah/transaction-categorization', split='train')
+df = ds.to_pandas().rename(columns={'transaction_description': 'description'})
+df[['description', 'category']].to_csv('data/raw/transactions.csv', index=False)
+print(f'Downloaded {len(df)} rows')
+"
 
       - name: DVC pull cached stages
         run: dvc pull --run-cache || echo "No remote cache available, running from scratch"
@@ -121,8 +135,22 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install torch --index-url https://download.pytorch.org/whl/cu128
           pip install -r requirements.txt
+
+      - name: Download HuggingFace dataset
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python -c "
+from datasets import load_dataset
+import os, pandas as pd
+os.makedirs('data/raw', exist_ok=True)
+ds = load_dataset('mitulshah/transaction-categorization', split='train')
+df = ds.to_pandas().rename(columns={'transaction_description': 'description'})
+df[['description', 'category']].to_csv('data/raw/transactions.csv', index=False)
+print(f'Downloaded {len(df)} rows')
+"
 
       - name: Reproduce DVC pipeline (for model artifacts)
         env:

@@ -18,10 +18,10 @@ SpendSense automatically classifies bank transaction descriptions (e.g. *"Zomato
                 ▼                          ▼
 ┌──────────────────────────┐   ┌───────────────────────────────────────┐
 │  Airflow (Data Layer)    │   │  DVC Pipeline (ML Reproducibility)    │
-│  DAG: ingestion_pipeline │   │  generate→ingest→preprocess           │
-│  - schema validation     │   │           →train→evaluate             │
-│  - null checks           │   │  params.yaml drives all stages        │
-│  - drift detection       │   │  Git + DVC track data & model         │
+│  DAG: ingestion_pipeline │   │  ingest→preprocess→train→evaluate     │
+│  - schema validation     │   │  params.yaml drives all stages        │
+│  - null checks           │   │  Git + DVC track data & model         │
+│  - drift detection       │   │                                      │
 └──────────────────────────┘   └──────────────┬────────────────────────┘
                                               ▼
                                ┌──────────────────────────┐
@@ -124,8 +124,11 @@ python3 -m venv venv
 source venv/bin/activate    # Linux/macOS
 # venv\Scripts\activate     # Windows
 
-# (Recommended) Install CPU-only PyTorch first for faster setup (~200 MB vs ~2 GB)
-pip install torch --index-url https://download.pytorch.org/whl/cpu
+# Install PyTorch (GPU-enabled if CUDA is available, otherwise CPU)
+# For CUDA 12.x:
+pip install torch --index-url https://download.pytorch.org/whl/cu121
+# For CPU-only (smaller download):
+# pip install torch --index-url https://download.pytorch.org/whl/cpu
 
 # Install all remaining dependencies
 pip install -r requirements.txt
@@ -143,14 +146,15 @@ git commit -m "init dvc"
 
 ### 3 — Run the full ML pipeline
 
-This runs all 5 stages: generate data → ingest → preprocess → train → evaluate.
+This runs all 4 stages: ingest → preprocess → train → evaluate.
+Training and evaluation automatically use **GPU (CUDA)** if available, otherwise fall back to CPU.
 
 ```bash
 dvc repro
 ```
 
 Expected output artefacts:
-- `data/raw/transactions.csv` — 6,000 synthetic transactions
+- `data/raw/transactions.csv` — HuggingFace transaction-categorization dataset
 - `data/processed/` — tokenised arrays, vocab, label encoder
 - `models/best_model.pt` — best BiLSTM checkpoint
 - `metrics/eval_metrics.json` — test accuracy + F1
