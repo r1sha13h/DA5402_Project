@@ -21,6 +21,7 @@ from sklearn.metrics import (
     confusion_matrix,
     f1_score,
 )
+from tqdm import tqdm
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 from src.models.model import BiLSTMClassifier  # noqa: E402
@@ -75,10 +76,15 @@ def evaluate(processed_dir: str, params: dict) -> dict:
     model.eval()
 
     X_tensor = torch.tensor(X_test, dtype=torch.long)
+    batch_size = params["train"].get("batch_size", 64)
+    all_probs = []
     with torch.no_grad():
-        logits = model(X_tensor)
-        probs = torch.softmax(logits, dim=1).numpy()
-        y_pred = np.argmax(probs, axis=1)
+        for i in tqdm(range(0, len(X_tensor), batch_size), desc="Evaluating", unit="batch"):
+            batch = X_tensor[i:i + batch_size]
+            logits = model(batch)
+            all_probs.append(torch.softmax(logits, dim=1).numpy())
+    probs = np.concatenate(all_probs, axis=0)
+    y_pred = np.argmax(probs, axis=1)
 
     acc = accuracy_score(y_test, y_pred)
     f1_macro = f1_score(y_test, y_pred, average="macro", zero_division=0)

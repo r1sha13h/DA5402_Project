@@ -95,16 +95,11 @@ services:
       - ./src:/opt/airflow/project/src
       - ./params.yaml:/opt/airflow/project/params.yaml
     environment:
-      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__CORE__EXECUTOR=SequentialExecutor
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////opt/airflow/airflow.db
       - PROJECT_ROOT=/opt/airflow/project
-    command: >
-      bash -c "airflow db migrate &&
-               airflow users create --username admin --password admin
-                 --firstname Admin --lastname User --role Admin
-                 --email admin@spendsense.local || true &&
-               airflow standalone"
+    command: bash -c "airflow db migrate && airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@spendsense.local || true && airflow standalone"
 
   # ── 5. Prometheus ────────────────────────────────────────────────────────────
   prometheus:
