@@ -139,9 +139,9 @@ def main() -> None:
 
     optimizer = torch.optim.Adam(model.parameters(), lr=tp["learning_rate"])
     criterion = nn.CrossEntropyLoss()
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=2, verbose=False)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=2)
 
-    mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", "http://localhost:5000"))
+    mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", "mlruns"))
     mlflow.set_experiment("SpendSense")
 
     with mlflow.start_run(run_name="bilstm_training") as run:
@@ -194,7 +194,7 @@ def main() -> None:
                     break
 
         # Load best weights, log model and artefacts
-        model.load_state_dict(torch.load(best_model_path))
+        model.load_state_dict(torch.load(best_model_path, weights_only=True))
         mlflow.log_metric("best_val_f1_macro", best_val_f1)
 
         mlflow.pytorch.log_model(

@@ -45,12 +45,13 @@ SpendSense automatically classifies bank transaction descriptions (e.g. *"Zomato
 |---|---|
 | CI/CD Orchestrator | **GitHub Actions** (self-hosted runner) |
 | Data Engineering | **Apache Airflow** 2.9 |
-| ML Pipeline | **DVC** 3.50 |
-| Experiment Tracking | **MLflow** 2.13 |
-| Model | **BiLSTM** (PyTorch 2.1) |
+| ML Pipeline | **DVC** ≥3.50 |
+| Experiment Tracking | **MLflow** ≥2.15 |
+| Model | **BiLSTM** (PyTorch ≥2.5) |
 | Model Serving | **FastAPI** + Uvicorn |
-| Frontend | **Streamlit** 1.35 |
+| Frontend | **Streamlit** ≥1.35 |
 | Containerisation | **Docker** + **docker-compose** |
+| Env Management | **Micromamba** (replaces Miniconda) |
 | Monitoring | **Prometheus** 2.52 + **Grafana** 10.4 |
 | Version Control | **Git** + **DVC** |
 
@@ -97,25 +98,42 @@ DA5402_Project/
 
 ## Prerequisites
 
-- Python 3.10
+- Python 3.10+
 - Docker + Docker Compose v2
 - Git
-- DVC (`pip install dvc`)
+- [Micromamba](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html) (replaces Miniconda/conda — ~10 MB binary, fully conda-compatible)
 - (Optional) GitHub self-hosted runner for full CI/CD
+
+**Install micromamba (one-time):**
+```bash
+curl -Ls https://micro.mamba.pm/install.sh | bash
+```
 
 ---
 
 ## End-to-End Setup
 
-### 1 — Clone and install dependencies
+### 1 — Clone, create virtual environment, and install dependencies
 
 ```bash
 git clone <your-repo-url>
 cd DA5402_Project
+
+# Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate    # Linux/macOS
+# venv\Scripts\activate     # Windows
+
+# (Recommended) Install CPU-only PyTorch first for faster setup (~200 MB vs ~2 GB)
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+# Install all remaining dependencies
 pip install -r requirements.txt
 ```
 
 ### 2 — Initialise DVC
+
+Skip this step if `.dvc/` already exists in the repo.
 
 ```bash
 dvc init
@@ -148,6 +166,10 @@ dvc metrics show
 docker compose up --build -d
 ```
 
+> **Note:** The first build downloads Docker images and installs dependencies
+> (including PyTorch). This can take **5–15 minutes** depending on your
+> internet speed. Subsequent builds use cached layers and are much faster.
+
 Services started:
 
 | Service | URL | Credentials |
@@ -157,7 +179,7 @@ Services started:
 | MLflow Tracking UI | http://localhost:5000 | — |
 | Apache Airflow UI | http://localhost:8080 | admin / admin |
 | Prometheus | http://localhost:9090 | — |
-| Grafana Dashboard | http://localhost:3000 | admin / admin |
+| Grafana Dashboard | http://localhost:3001 | admin / admin |
 
 ### 5 — Verify the backend
 
@@ -184,7 +206,7 @@ curl http://localhost:8000/metrics
 
 ### 7 — View the Grafana Dashboard
 
-1. Open http://localhost:3000
+1. Open http://localhost:3001
 2. Login: `admin` / `admin`
 3. Navigate to **Dashboards → SpendSense → SpendSense — MLOps Dashboard**
 4. The dashboard shows: request rate, P95 latency, error rate gauge, predictions by category
@@ -250,6 +272,7 @@ Experiments are tracked at `http://localhost:5000`.
 
 **Re-run with different hyperparameters:**
 ```bash
+# Uses python_env.yaml (virtualenv-based, no conda required)
 mlflow run . -P embed_dim=256 -P hidden_dim=512 -P learning_rate=0.0005
 ```
 
