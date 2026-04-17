@@ -3,10 +3,17 @@ torch>=2.5.0
 numpy>=2.1.0
 pandas>=2.2.0
 scikit-learn>=1.6.0
+tqdm>=4.66.0
 
 # MLOps
 mlflow>=2.15.0
 dvc>=3.50.0
+
+# Backend / API
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+prometheus-client>=0.20.0
+pydantic>=2.7.0
 
 # Config
 pyyaml>=6.0

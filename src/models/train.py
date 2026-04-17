@@ -19,6 +19,7 @@ import torch.nn as nn
 import yaml
 from sklearn.metrics import accuracy_score, f1_score
 from torch.utils.data import DataLoader, TensorDataset
+from tqdm import tqdm
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 from src.models.model import BiLSTMClassifier  # noqa: E402
@@ -74,9 +75,10 @@ def run_epoch(model, loader, optimizer, criterion, device, training: bool):
     all_preds: list = []
     all_labels: list = []
 
+    phase = "Train" if training else "Val"
     ctx = torch.enable_grad() if training else torch.no_grad()
     with ctx:
-        for X_batch, y_batch in loader:
+        for X_batch, y_batch in tqdm(loader, desc=f"  {phase}", leave=False):
             X_batch, y_batch = X_batch.to(device), y_batch.to(device)
             if training:
                 optimizer.zero_grad()
@@ -163,7 +165,8 @@ def main() -> None:
         os.makedirs("models", exist_ok=True)
         best_model_path = os.path.join("models", "best_model.pt")
 
-        for epoch in range(1, tp["epochs"] + 1):
+        epoch_bar = tqdm(range(1, tp["epochs"] + 1), desc="Epochs", unit="epoch")
+        for epoch in epoch_bar:
             tr_loss, tr_acc, tr_f1 = run_epoch(
                 model, train_loader, optimizer, criterion, device, training=True
             )
