@@ -11,7 +11,7 @@ train:
   hidden_dim: 256
   num_layers: 2
   dropout: 0.75
-  batch_size: 64
+  batch_size: 512
   learning_rate: 0.001
   epochs: 20
   early_stopping_patience: 3
