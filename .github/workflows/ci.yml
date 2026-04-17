@@ -81,15 +81,15 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          python -c "
-from datasets import load_dataset
-import os, pandas as pd
-os.makedirs('data/raw', exist_ok=True)
-ds = load_dataset('mitulshah/transaction-categorization', split='train')
-df = ds.to_pandas().rename(columns={'transaction_description': 'description'})
-df[['description', 'category']].to_csv('data/raw/transactions.csv', index=False)
-print(f'Downloaded {len(df)} rows')
-"
+          python << 'PYEOF'
+          from datasets import load_dataset
+          import os, pandas as pd
+          os.makedirs("data/raw", exist_ok=True)
+          ds = load_dataset("mitulshah/transaction-categorization", split="train")
+          df = ds.to_pandas().rename(columns={"transaction_description": "description"})
+          df[["description", "category"]].to_csv("data/raw/transactions.csv", index=False)
+          print(f"Downloaded {len(df)} rows")
+          PYEOF
 
       - name: DVC pull cached stages
         run: dvc pull --run-cache || echo "No remote cache available, running from scratch"
@@ -142,15 +142,15 @@ print(f'Downloaded {len(df)} rows')
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          python -c "
-from datasets import load_dataset
-import os, pandas as pd
-os.makedirs('data/raw', exist_ok=True)
-ds = load_dataset('mitulshah/transaction-categorization', split='train')
-df = ds.to_pandas().rename(columns={'transaction_description': 'description'})
-df[['description', 'category']].to_csv('data/raw/transactions.csv', index=False)
-print(f'Downloaded {len(df)} rows')
-"
+          python << 'PYEOF'
+          from datasets import load_dataset
+          import os, pandas as pd
+          os.makedirs("data/raw", exist_ok=True)
+          ds = load_dataset("mitulshah/transaction-categorization", split="train")
+          df = ds.to_pandas().rename(columns={"transaction_description": "description"})
+          df[["description", "category"]].to_csv("data/raw/transactions.csv", index=False)
+          print(f"Downloaded {len(df)} rows")
+          PYEOF
 
       - name: Reproduce DVC pipeline (for model artifacts)
         env:
