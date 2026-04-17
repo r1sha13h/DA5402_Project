@@ -1,17 +1,15 @@
 """Unit tests for src/data/preprocess.py."""
 
 import os
-import pickle
 import sys
 import tempfile
 
 import numpy as np
 import pandas as pd
-import pytest
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from src.data.preprocess import build_vocab, encode_texts, tokenize
+from src.data.preprocess import build_vocab, encode_texts, tokenize  # noqa: E402
 
 
 # ── Tests: tokenize ───────────────────────────────────────────────────────────

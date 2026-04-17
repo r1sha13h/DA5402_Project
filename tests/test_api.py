@@ -1,9 +1,7 @@
 """Unit tests for the FastAPI backend endpoints."""
 
 import os
-import pickle
 import sys
-import tempfile
 from unittest.mock import MagicMock, patch
 
 import pytest
