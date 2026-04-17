@@ -71,7 +71,7 @@ class SpendSensePredictor:
                 dropout=tp["dropout"],
             )
             self.model.load_state_dict(
-                torch.load(_MODEL_PATH, map_location="cpu")
+                torch.load(_MODEL_PATH, map_location="cpu", weights_only=True)
             )
             self.model.eval()
             logger.info("Model loaded successfully from %s", _MODEL_PATH)

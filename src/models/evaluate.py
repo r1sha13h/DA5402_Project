@@ -71,7 +71,7 @@ def evaluate(processed_dir: str, params: dict) -> dict:
         logger.error("Trained model not found at %s. Run training first.", model_path)
         sys.exit(1)
 
-    model.load_state_dict(torch.load(model_path, map_location="cpu"))
+    model.load_state_dict(torch.load(model_path, map_location="cpu", weights_only=True))
     model.eval()
 
     X_tensor = torch.tensor(X_test, dtype=torch.long)
@@ -104,7 +104,7 @@ def evaluate(processed_dir: str, params: dict) -> dict:
                                       zero_division=0))
 
     # Log to MLflow (attaches to the last active run or creates a new child run)
-    mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", "http://localhost:5000"))
+    mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", "mlruns"))
     mlflow.set_experiment("SpendSense")
     with mlflow.start_run(run_name="evaluation"):
         mlflow.log_metrics({

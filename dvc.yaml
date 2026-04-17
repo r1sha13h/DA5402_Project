@@ -1,6 +1,6 @@
 stages:
   generate:
-    cmd: python src/data/generate_synthetic.py
+    cmd: python -u src/data/generate_synthetic.py
       --output ${data.raw_path}
       --n-samples ${data.n_synthetic_samples}
       --seed ${preprocess.seed}
@@ -14,7 +14,7 @@ stages:
       - data/raw/transactions.csv
 
   ingest:
-    cmd: python src/data/ingest.py
+    cmd: python -u src/data/ingest.py
     deps:
       - src/data/ingest.py
       - data/raw/transactions.csv
@@ -26,7 +26,7 @@ stages:
       - data/ingested/baseline_stats.json
 
   preprocess:
-    cmd: python src/data/preprocess.py
+    cmd: python -u src/data/preprocess.py
     deps:
       - src/data/preprocess.py
       - data/ingested/transactions.csv
@@ -46,7 +46,7 @@ stages:
       - data/processed/feature_baseline.json
 
   train:
-    cmd: python src/models/train.py
+    cmd: python -u src/models/train.py
     deps:
       - src/models/train.py
       - src/models/model.py
@@ -66,7 +66,7 @@ stages:
           cache: false
 
   evaluate:
-    cmd: python src/models/evaluate.py
+    cmd: python -u src/models/evaluate.py
     deps:
       - src/models/evaluate.py
       - src/models/model.py

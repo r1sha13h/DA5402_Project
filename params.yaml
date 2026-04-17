@@ -10,7 +10,7 @@ train:
   embed_dim: 128
   hidden_dim: 256
   num_layers: 2
-  dropout: 0.3
+  dropout: 0.5
   batch_size: 64
   learning_rate: 0.001
   epochs: 20

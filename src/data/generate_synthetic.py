@@ -119,17 +119,32 @@ _MONTHS = [
 
 
 def _fill_template(template: str) -> str:
-    """Fill template placeholders with random values."""
+    """Fill template placeholders and add random variation for uniqueness."""
     desc = template
     if "{amount}" in desc:
-        desc = desc.replace("{amount}", f"\u20b9{random.randint(50, 2000)}")
+        desc = desc.replace("{amount}", f"\u20b9{random.randint(50, 5000)}")
     if "{n}" in desc:
-        desc = desc.replace("{n}", str(random.randint(1000, 9999)))
+        desc = desc.replace("{n}", str(random.randint(1000, 99999)))
     if "{place}" in desc:
         desc = desc.replace("{place}", random.choice(_PLACES))
     if "{month}" in desc:
         desc = desc.replace("{month}", random.choice(_MONTHS))
-    return desc
+
+    # Add variation so repeated templates produce unique descriptions
+    day = random.randint(1, 28)
+    month = random.choice(_MONTHS[:12])
+    ref = random.randint(100000, 999999)
+    amt = random.randint(20, 9999)
+    suffix = random.choice([
+        f" ref {ref}",
+        f" on {day} {month}",
+        f" INR {amt}",
+        f" txn {ref}",
+        f" {day}/{random.randint(1, 12):02d}",
+        f" id {ref}",
+        f" amt {amt}",
+    ])
+    return desc + suffix
 
 
 def generate_dataset(n_samples: int = 6000, seed: int = 42) -> pd.DataFrame:
