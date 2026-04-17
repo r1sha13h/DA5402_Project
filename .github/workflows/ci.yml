@@ -69,7 +69,7 @@ jobs:
 
       - name: Activate project venv
         run: |
-          source venv/bin/activate
+          source /home/rishabh/Documents/IITM/MLOps/Project/DA5402_Project/venv/bin/activate
           echo "PATH=$PATH" >> "$GITHUB_ENV"
           echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> "$GITHUB_ENV"
 
@@ -130,7 +130,7 @@ jobs:
 
       - name: Activate project venv
         run: |
-          source venv/bin/activate
+          source /home/rishabh/Documents/IITM/MLOps/Project/DA5402_Project/venv/bin/activate
           echo "PATH=$PATH" >> "$GITHUB_ENV"
           echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> "$GITHUB_ENV"
 
