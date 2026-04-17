@@ -108,7 +108,8 @@ def main() -> None:
     seed = tp["seed"]
     torch.manual_seed(seed)
     np.random.seed(seed)
-    device = torch.device("cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    logger.info("Using device: %s", device)
 
     logger.info("Loading preprocessed data from %s ...", dp["processed_dir"])
     X_train, X_val, y_train, y_val, vocab, label_encoder = load_processed_data(
@@ -197,7 +198,7 @@ def main() -> None:
                     break
 
         # Load best weights, log model and artefacts
-        model.load_state_dict(torch.load(best_model_path, weights_only=True))
+        model.load_state_dict(torch.load(best_model_path, map_location=device, weights_only=True))
         mlflow.log_metric("best_val_f1_macro", best_val_f1)
 
         mlflow.pytorch.log_model(

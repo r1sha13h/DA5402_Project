@@ -15,10 +15,12 @@ import yaml
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
-REQUIRED_COLUMNS = {"description", "amount", "category"}
+REQUIRED_COLUMNS = {"description", "category"}
 EXPECTED_CATEGORIES = {
-    "Food & Dining", "Transport", "Utilities", "Entertainment", "Shopping",
-    "Healthcare", "Education", "Travel", "Housing", "Finance",
+    "Food & Dining", "Transportation", "Shopping & Retail",
+    "Entertainment & Recreation", "Healthcare & Medical",
+    "Utilities & Services", "Financial Services", "Income",
+    "Government & Legal", "Charity & Donations",
 }
 
 
@@ -43,9 +45,6 @@ def validate_schema(df: pd.DataFrame) -> None:
 
     if not pd.api.types.is_string_dtype(df["description"]):
         raise ValueError("Column 'description' must be string type.")
-
-    if not pd.api.types.is_numeric_dtype(df["amount"]):
-        raise ValueError("Column 'amount' must be numeric type.")
 
     if not pd.api.types.is_string_dtype(df["category"]):
         raise ValueError("Column 'category' must be string type.")
@@ -101,10 +100,6 @@ def log_baseline_statistics(df: pd.DataFrame, output_dir: str) -> None:
     stats = {
         "total_rows": int(len(df)),
         "category_distribution": df["category"].value_counts().to_dict(),
-        "amount_mean": float(df["amount"].mean()),
-        "amount_std": float(df["amount"].std()),
-        "amount_min": float(df["amount"].min()),
-        "amount_max": float(df["amount"].max()),
         "description_avg_length": float(df["description"].str.len().mean()),
     }
     os.makedirs(output_dir, exist_ok=True)
