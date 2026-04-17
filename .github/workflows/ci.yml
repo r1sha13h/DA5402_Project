@@ -114,8 +114,23 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements.txt
+
+      - name: Reproduce DVC pipeline (for model artifacts)
+        env:
+          MLFLOW_TRACKING_URI: mlruns
+        run: dvc repro
+
       - name: Build Docker images
-        run: docker compose build --no-cache
+        run: docker compose build
 
       - name: Start services
         run: docker compose up -d
