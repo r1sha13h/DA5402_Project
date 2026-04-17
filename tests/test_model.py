@@ -8,7 +8,7 @@ import torch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from src.models.model import BiLSTMClassifier
+from src.models.model import BiLSTMClassifier  # noqa: E402
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -55,7 +55,7 @@ def test_output_shape_variable_seq_len(small_model):
 def test_padding_token_embedding_is_zero():
     """PAD token (index 0) embedding should be zero-initialised."""
     model = BiLSTMClassifier(vocab_size=50, embed_dim=16, hidden_dim=32,
-                              num_classes=5, num_layers=1, dropout=0.0)
+                             num_classes=5, num_layers=1, dropout=0.0)
     pad_vector = model.embedding.weight[0].detach()
     assert torch.allclose(pad_vector, torch.zeros(16))
 
@@ -65,7 +65,7 @@ def test_padding_token_embedding_is_zero():
 def test_single_layer_no_dropout():
     """Single-layer model (no LSTM dropout) runs without error."""
     model = BiLSTMClassifier(vocab_size=50, embed_dim=8, hidden_dim=16,
-                              num_classes=3, num_layers=1, dropout=0.3)
+                             num_classes=3, num_layers=1, dropout=0.3)
     x = torch.randint(0, 50, (2, 10))
     out = model(x)
     assert out.shape == (2, 3)

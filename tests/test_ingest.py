@@ -9,7 +9,7 @@ import pytest
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from src.data.ingest import validate_categories, validate_nulls, validate_schema
+from src.data.ingest import validate_categories, validate_nulls, validate_schema  # noqa: E402
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
