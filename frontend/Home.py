@@ -166,12 +166,12 @@ st.divider()
 st.markdown("**Try these examples:**")
 
 examples = [
-    "Zomato food delivery payment",
-    "BESCOM electricity bill payment",
-    "Uber ride to airport",
-    "Netflix monthly subscription",
-    "Apollo pharmacy medicines",
-    "Amazon order #1234",
+    "Arby's Contactless",
+    "Occupational Therapy",
+    "Potbelly Store Branch",
+    "IRS Tax Refund",
+    "Amazon Prime Renewal",
+    "Electric Bill Payment",
 ]
 
 cols = st.columns(3)

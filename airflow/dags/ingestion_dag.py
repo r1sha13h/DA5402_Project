@@ -15,7 +15,6 @@ import json
 import logging
 import os
 import subprocess
-import sys
 from datetime import datetime, timedelta
 
 from airflow import DAG
@@ -45,26 +44,24 @@ SCHEDULE = os.environ.get("AIRFLOW_INGESTION_SCHEDULE", "@daily")
 
 def task_verify_raw_data(**context):
     """Verify that the raw CSV exists in data/raw/."""
-    if os.path.exists(RAW_PATH):
-        import pandas as pd  # noqa: PLC0415
-        df = pd.read_csv(RAW_PATH)
-        logger.info("Raw data found at %s — %d rows.", RAW_PATH, len(df))
-        return {"exists": True, "path": RAW_PATH, "rows": len(df)}
-
-    raise FileNotFoundError(
-        f"Raw data not found at {RAW_PATH}. "
-        "Please place transactions.csv in data/raw/ before running the pipeline."
-    )
+    if not os.path.exists(RAW_PATH):
+        raise FileNotFoundError(
+            f"Raw data not found at {RAW_PATH}. "
+            "Please place transactions.csv in data/raw/ before running the pipeline."
+        )
+    size_mb = os.path.getsize(RAW_PATH) / (1024 * 1024)
+    logger.info("Raw data found at %s — %.1f MB.", RAW_PATH, size_mb)
+    return {"exists": True, "path": RAW_PATH, "size_mb": round(size_mb, 1)}
 
 
 def task_validate_schema(**context):
-    """Validate that the raw CSV has required columns and correct dtypes."""
+    """Validate that the raw CSV has required columns and correct dtypes.
+
+    Reads only the first 1000 rows for speed on large datasets.
+    """
     import pandas as pd  # noqa: PLC0415
 
-    if not os.path.exists(RAW_PATH):
-        raise FileNotFoundError(f"Raw data not found: {RAW_PATH}")
-
-    df = pd.read_csv(RAW_PATH)
+    df = pd.read_csv(RAW_PATH, nrows=1000)
     required = {"description", "category"}
     missing = required - set(df.columns)
     if missing:
@@ -73,15 +70,15 @@ def task_validate_schema(**context):
     if not all(pd.api.types.is_string_dtype(df[c]) for c in ["description", "category"]):
         raise TypeError("Columns 'description' and 'category' must be string type.")
 
-    logger.info("Schema validation passed. Rows: %d", len(df))
-    return {"rows": len(df), "columns": list(df.columns)}
+    logger.info("Schema validation passed. Columns: %s", list(df.columns))
+    return {"columns": list(df.columns)}
 
 
 def task_check_nulls(**context):
     """Check for null values in required columns and report counts."""
     import pandas as pd  # noqa: PLC0415
 
-    df = pd.read_csv(RAW_PATH)
+    df = pd.read_csv(RAW_PATH, usecols=["description", "category"])
     null_counts = df[["description", "category"]].isnull().sum().to_dict()
     total_nulls = sum(null_counts.values())
 
@@ -100,7 +97,7 @@ def task_check_drift(**context):
     """
     import pandas as pd  # noqa: PLC0415
 
-    df = pd.read_csv(RAW_PATH)
+    df = pd.read_csv(RAW_PATH, usecols=["category"])
     current_dist = df["category"].value_counts(normalize=True).to_dict()
 
     if not os.path.exists(BASELINE_PATH):
