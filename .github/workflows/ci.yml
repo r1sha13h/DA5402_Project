@@ -26,20 +26,16 @@ jobs:
   # ── Job 1: Lint + Unit Tests ───────────────────────────────────────────────
   test:
     name: Lint & Unit Tests
-    runs-on: self-hosted          # LOCAL runner required (no cloud allowed)
+    runs-on: self-hosted
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install dependencies
+      - name: Activate project venv
         run: |
-          pip install torch --index-url https://download.pytorch.org/whl/cpu
-          pip install -r requirements.txt
+          source /home/rishabh/Documents/IITM/MLOps/Project/DA5402_Project/venv/bin/activate
+          echo "PATH=$PATH" >> "$GITHUB_ENV"
+          echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> "$GITHUB_ENV"
 
       - name: Lint with flake8
         run: |
@@ -55,7 +51,8 @@ jobs:
             --cov-report=term-missing \
             --cov-fail-under=60
 
-  # ── Job 2: ML Pipeline + Infrastructure ────────────────────────────────────
+  # ── Job 2: ML Pipeline + Infra Services ───────────────────────────────────
+  # Merges old jobs 2 & 3 — training happens exactly once here.
   ml-pipeline:
     name: ML Pipeline + Infra Services
     runs-on: self-hosted
@@ -73,21 +70,22 @@ jobs:
           echo "PATH=$PATH" >> "$GITHUB_ENV"
           echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> "$GITHUB_ENV"
 
-      - name: Verify CUDA availability
+      - name: Verify torch (CPU)
         run: |
-          python -c "import torch; assert torch.cuda.is_available(), 'CUDA not available'; print(f'GPU: {torch.cuda.get_device_name(0)}')"
+          python -c "import torch; print(f'torch={torch.__version__}, CUDA={torch.cuda.is_available()}')"
 
       - name: Verify raw data exists
         run: |
-          test -f data/raw/transactions.csv || (echo "FAIL: data/raw/transactions.csv not found" && exit 1)
-          echo "Raw data found: $(wc -l < data/raw/transactions.csv) lines"
+          test -f data/raw/transactions.csv || \
+            (echo "FAIL: data/raw/transactions.csv not found. Place real data in data/raw/ before running." && exit 1)
+          echo "Raw data ready: $(wc -l < data/raw/transactions.csv) lines"
 
       - name: DVC pull cached stages
         run: dvc pull --run-cache || echo "No remote cache available, running from scratch"
 
-      - name: Run DVC pipeline (train once)
+      - name: Run DVC pipeline (ingest → preprocess → train → evaluate)
         env:
-          MLFLOW_TRACKING_URI: mlruns
+          MLFLOW_TRACKING_URI: http://localhost:5000
         run: dvc repro
 
       - name: Check evaluation metrics
@@ -105,6 +103,9 @@ jobs:
               sys.exit(1)
           print("PASS: metrics meet acceptance criteria.")
           EOF
+
+      - name: Push DVC artifacts to cache
+        run: dvc push || echo "No DVC remote configured, skipping push"
 
       - name: Build infra Docker images
         run: docker compose build mlflow airflow prometheus grafana
@@ -141,17 +142,23 @@ jobs:
           [ "$STATUS" == "200" ] || (echo "Grafana health check failed: HTTP $STATUS" && exit 1)
           echo "Grafana smoke test PASSED."
 
-      - name: Smoke test — Airflow
+      - name: Wait for Airflow to be healthy
         run: |
           for i in $(seq 1 30); do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/health)
             if [ "$STATUS" == "200" ]; then
-              echo "Airflow smoke test PASSED."
+              echo "Airflow is healthy."
               break
             fi
             echo "Waiting for Airflow... ($i/30)"
             sleep 10
           done
+
+      - name: Smoke test — Airflow
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/health)
+          [ "$STATUS" == "200" ] || (echo "Airflow health check failed: HTTP $STATUS" && exit 1)
+          echo "Airflow smoke test PASSED."
 
       - name: Upload pipeline artifacts
         uses: actions/upload-artifact@v4
@@ -165,10 +172,8 @@ jobs:
             params.yaml
           retention-days: 1
 
-      - name: Push DVC artifacts to cache
-        run: dvc push || echo "No DVC remote configured, skipping push"
-
   # ── Job 3: Streamlit + FastAPI ────────────────────────────────────────────
+  # Uses artifacts from Job 2 — no retraining.
   app:
     name: Streamlit & FastAPI Smoke Tests
     runs-on: self-hosted
@@ -183,10 +188,16 @@ jobs:
         with:
           name: pipeline-artifacts
 
+      - name: Activate project venv
+        run: |
+          source /home/rishabh/Documents/IITM/MLOps/Project/DA5402_Project/venv/bin/activate
+          echo "PATH=$PATH" >> "$GITHUB_ENV"
+          echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> "$GITHUB_ENV"
+
       - name: Build app Docker images
         run: docker compose build backend frontend
 
-      - name: Start app services (backend + frontend)
+      - name: Start app services
         run: docker compose up -d backend frontend
 
       - name: Wait for backend to be ready
@@ -215,7 +226,7 @@ jobs:
         run: |
           RESP=$(curl -s -X POST http://localhost:8000/predict \
             -H "Content-Type: application/json" \
-            -d '{"description": "Zomato food delivery payment"}')
+            -d '{"description": "Arby'\''s Contactless"}')
           echo "$RESP"
           echo "$RESP" | python -c "
           import json, sys
@@ -225,11 +236,16 @@ jobs:
           print('Prediction smoke test PASSED.')
           "
 
-      - name: Smoke test — /models (model listing)
+      - name: Smoke test — /models (MLflow run listing)
         run: |
           RESP=$(curl -sf http://localhost:8000/models)
           echo "$RESP"
-          echo "Model listing smoke test PASSED."
+          echo "$RESP" | python -c "
+          import json, sys
+          d = json.load(sys.stdin)
+          assert 'runs' in d, 'Missing runs list'
+          print(f'Model listing PASSED — {len(d[\"runs\"])} run(s) available.')
+          "
 
       - name: Smoke test — /metrics (Prometheus)
         run: |
