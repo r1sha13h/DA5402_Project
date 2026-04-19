@@ -55,9 +55,9 @@ jobs:
             --cov-report=term-missing \
             --cov-fail-under=60
 
-  # ── Job 2: DVC ML Pipeline ─────────────────────────────────────────────────
+  # ── Job 2: ML Pipeline + Infrastructure ────────────────────────────────────
   ml-pipeline:
-    name: DVC Reproduce (ML Pipeline)
+    name: ML Pipeline + Infra Services
     runs-on: self-hosted
     needs: test
     if: >
@@ -77,24 +77,15 @@ jobs:
         run: |
           python -c "import torch; assert torch.cuda.is_available(), 'CUDA not available'; print(f'GPU: {torch.cuda.get_device_name(0)}')"
 
-      - name: Download HuggingFace dataset
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      - name: Verify raw data exists
         run: |
-          python << 'PYEOF'
-          from datasets import load_dataset
-          import os, pandas as pd
-          os.makedirs("data/raw", exist_ok=True)
-          ds = load_dataset("mitulshah/transaction-categorization", split="train")
-          df = ds.to_pandas().rename(columns={"transaction_description": "description"})
-          df[["description", "category"]].to_csv("data/raw/transactions.csv", index=False)
-          print(f"Downloaded {len(df)} rows")
-          PYEOF
+          test -f data/raw/transactions.csv || (echo "FAIL: data/raw/transactions.csv not found" && exit 1)
+          echo "Raw data found: $(wc -l < data/raw/transactions.csv) lines"
 
       - name: DVC pull cached stages
         run: dvc pull --run-cache || echo "No remote cache available, running from scratch"
 
-      - name: Run DVC pipeline
+      - name: Run DVC pipeline (train once)
         env:
           MLFLOW_TRACKING_URI: mlruns
         run: dvc repro
@@ -115,12 +106,71 @@ jobs:
           print("PASS: metrics meet acceptance criteria.")
           EOF
 
+      - name: Build infra Docker images
+        run: docker compose build mlflow airflow prometheus grafana
+
+      - name: Start infra services
+        run: docker compose up -d mlflow airflow prometheus grafana
+
+      - name: Wait for MLflow to be healthy
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:5000/health > /dev/null 2>&1; then
+              echo "MLflow is healthy."
+              break
+            fi
+            echo "Waiting for MLflow... ($i/30)"
+            sleep 5
+          done
+
+      - name: Smoke test — MLflow
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5000/health)
+          [ "$STATUS" == "200" ] || (echo "MLflow health check failed: HTTP $STATUS" && exit 1)
+          echo "MLflow smoke test PASSED."
+
+      - name: Smoke test — Prometheus
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:9090/-/healthy)
+          [ "$STATUS" == "200" ] || (echo "Prometheus health check failed: HTTP $STATUS" && exit 1)
+          echo "Prometheus smoke test PASSED."
+
+      - name: Smoke test — Grafana
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3001/api/health)
+          [ "$STATUS" == "200" ] || (echo "Grafana health check failed: HTTP $STATUS" && exit 1)
+          echo "Grafana smoke test PASSED."
+
+      - name: Smoke test — Airflow
+        run: |
+          for i in $(seq 1 30); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/health)
+            if [ "$STATUS" == "200" ]; then
+              echo "Airflow smoke test PASSED."
+              break
+            fi
+            echo "Waiting for Airflow... ($i/30)"
+            sleep 10
+          done
+
+      - name: Upload pipeline artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-artifacts
+          path: |
+            models/
+            data/processed/
+            metrics/
+            mlruns/
+            params.yaml
+          retention-days: 1
+
       - name: Push DVC artifacts to cache
         run: dvc push || echo "No DVC remote configured, skipping push"
 
-  # ── Job 3: Docker Build & Smoke Test ──────────────────────────────────────
-  docker:
-    name: Docker Build & Smoke Tests
+  # ── Job 3: Streamlit + FastAPI ────────────────────────────────────────────
+  app:
+    name: Streamlit & FastAPI Smoke Tests
     runs-on: self-hosted
     needs: ml-pipeline
     if: github.ref == 'refs/heads/main'
@@ -128,45 +178,25 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Activate project venv
-        run: |
-          source /home/rishabh/Documents/IITM/MLOps/Project/DA5402_Project/venv/bin/activate
-          echo "PATH=$PATH" >> "$GITHUB_ENV"
-          echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> "$GITHUB_ENV"
+      - name: Download pipeline artifacts from Job 2
+        uses: actions/download-artifact@v4
+        with:
+          name: pipeline-artifacts
 
-      - name: Download HuggingFace dataset
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-          python << 'PYEOF'
-          from datasets import load_dataset
-          import os, pandas as pd
-          os.makedirs("data/raw", exist_ok=True)
-          ds = load_dataset("mitulshah/transaction-categorization", split="train")
-          df = ds.to_pandas().rename(columns={"transaction_description": "description"})
-          df[["description", "category"]].to_csv("data/raw/transactions.csv", index=False)
-          print(f"Downloaded {len(df)} rows")
-          PYEOF
+      - name: Build app Docker images
+        run: docker compose build backend frontend
 
-      - name: Reproduce DVC pipeline (for model artifacts)
-        env:
-          MLFLOW_TRACKING_URI: mlruns
-        run: dvc repro
-
-      - name: Build Docker images
-        run: docker compose build
-
-      - name: Start services
-        run: docker compose up -d
+      - name: Start app services (backend + frontend)
+        run: docker compose up -d backend frontend
 
       - name: Wait for backend to be ready
         run: |
-          for i in $(seq 1 30); do
+          for i in $(seq 1 60); do
             if curl -sf http://localhost:8000/health > /dev/null; then
               echo "Backend is ready."
               break
             fi
-            echo "Waiting for backend... ($i/30)"
+            echo "Waiting for backend... ($i/60)"
             sleep 5
           done
 
@@ -174,6 +204,7 @@ jobs:
         run: |
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health)
           [ "$STATUS" == "200" ] || (echo "Health check failed: HTTP $STATUS" && exit 1)
+          echo "Backend /health PASSED."
 
       - name: Smoke test — /ready
         run: |
@@ -194,11 +225,24 @@ jobs:
           print('Prediction smoke test PASSED.')
           "
 
+      - name: Smoke test — /models (model listing)
+        run: |
+          RESP=$(curl -sf http://localhost:8000/models)
+          echo "$RESP"
+          echo "Model listing smoke test PASSED."
+
       - name: Smoke test — /metrics (Prometheus)
         run: |
           curl -sf http://localhost:8000/metrics | grep "spendsense_" || \
             (echo "Prometheus metrics not found" && exit 1)
+          echo "Prometheus metrics PASSED."
 
-      - name: Tear down services
+      - name: Smoke test — Streamlit frontend
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8501)
+          [ "$STATUS" == "200" ] || (echo "Streamlit health check failed: HTTP $STATUS" && exit 1)
+          echo "Streamlit frontend PASSED."
+
+      - name: Tear down all services
         if: always()
         run: docker compose down -v

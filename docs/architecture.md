@@ -17,11 +17,11 @@ SpendSense is a neural-network-based personal expense classifier that automatica
                 ▼                          ▼
 ┌──────────────────────────┐   ┌───────────────────────────────────────┐
 │  Airflow (Data Layer)    │   │  DVC Pipeline (ML Reproducibility)    │
-│  DAG: ingestion_pipeline │   │  generate → ingest → preprocess       │
-│  - schema validation     │   │         → train → evaluate            │
-│  - null checks           │   │  params.yaml drives all stages        │
-│  - drift detection       │   │  Git + DVC track data & model         │
-│  - raw data → ingested/  │   └──────────────┬────────────────────────┘
+│  DAG: ingestion_pipeline │   │  ingest → preprocess → train → evaluate │
+│  - schema validation     │   │  params.yaml drives all stages        │
+│  - null checks           │   │  Git + DVC track data & model         │
+│  - drift detection       │   └──────────────┬────────────────────────┘
+│  - raw data → ingested/  │                  │
 └──────────────────────────┘                  │
                                               ▼
                                ┌──────────────────────────┐
@@ -58,13 +58,13 @@ SpendSense is a neural-network-based personal expense classifier that automatica
 
 ### Layer 2A — Apache Airflow (Data Orchestration)
 - Manages the scheduled data ingestion workflow
-- DAG tasks: generate data → validate schema → check nulls → detect drift → run ingest
+- DAG tasks: validate schema → check nulls → detect drift → run ingest
 - Runs independently on a `@daily` schedule; GitHub Actions can also trigger it
 - Exposes a web UI on port 8080 for pipeline visibility
 
 ### Layer 2B — DVC (ML Pipeline Reproducibility)
 - Defines the ML pipeline as a directed acyclic graph in `dvc.yaml`
-- Stages: `generate` → `ingest` → `preprocess` → `train` → `evaluate`
+- Stages: `ingest` → `preprocess` → `train` → `evaluate`
 - Tracks data and model versions via Git + DVC
 - `dvc repro` reruns only changed stages (incremental execution)
 

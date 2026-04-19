@@ -101,15 +101,15 @@ Shows the health and status of all backend services in real time.
 | Category | Typical Transactions |
 |---|---|
 | 🍽️ Food & Dining | Zomato, Swiggy, restaurants, groceries |
-| 🚗 Transport | Uber, Ola, petrol, bus pass, metro |
-| 💡 Utilities | Electricity, water, internet, gas, mobile recharge |
-| 🎬 Entertainment | Netflix, Spotify, cinema, gaming |
-| 🛍️ Shopping | Amazon, Flipkart, clothing stores |
-| 🏥 Healthcare | Pharmacy, doctor fees, diagnostic tests |
-| 📚 Education | Online courses, college fees, stationery |
-| ✈️ Travel | Hotel bookings, flight tickets, tour packages |
-| 🏠 Housing | Rent, maintenance, repairs, home loan EMI |
-| 💰 Finance | Credit card payment, SIP, insurance premium |
+| 🚗 Transportation | Uber, Ola, petrol, bus pass, metro |
+| 💡 Utilities & Services | Electricity, water, internet, gas, mobile recharge |
+| 🎬 Entertainment & Recreation | Netflix, Spotify, cinema, gaming |
+| 🛍️ Shopping & Retail | Amazon, Flipkart, clothing stores |
+| 🏥 Healthcare & Medical | Pharmacy, doctor fees, diagnostic tests |
+| � Financial Services | Credit card payment, SIP, insurance premium |
+| 💵 Income | Salary, freelance payment, refund |
+| �️ Government & Legal | Tax payment, passport fees, court fees |
+| 🤝 Charity & Donations | NGO donation, temple donation |
 
 ---
 
