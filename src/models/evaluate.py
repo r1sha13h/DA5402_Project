@@ -23,6 +23,12 @@ from sklearn.metrics import (
 )
 from tqdm import tqdm
 
+try:
+    from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
+    _PUSHGATEWAY_AVAILABLE = True
+except ImportError:
+    _PUSHGATEWAY_AVAILABLE = False
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 from src.models.model import BiLSTMClassifier  # noqa: E402
 
@@ -70,7 +76,7 @@ def evaluate(processed_dir: str, params: dict) -> dict:
         dropout=tp["dropout"],
     ).to(device)
 
-    model_path = os.path.join("models", "best_model.pt")
+    model_path = os.path.join("models", "latest_model.pt")
     if not os.path.exists(model_path):
         logger.error("Trained model not found at %s. Run training first.", model_path)
         sys.exit(1)
@@ -124,6 +130,20 @@ def evaluate(processed_dir: str, params: dict) -> dict:
         for cls in label_encoder.classes_:
             mlflow.log_metric(f"f1_{cls.replace(' & ', '_').replace(' ', '_').lower()}",
                               report[cls]["f1-score"])
+
+    # Push evaluation metrics to Prometheus Pushgateway
+    pushgateway_url = os.environ.get("PUSHGATEWAY_URL", "http://localhost:9091")
+    if _PUSHGATEWAY_AVAILABLE:
+        try:
+            registry = CollectorRegistry()
+            Gauge("spendsense_test_f1_macro", "Test macro F1 from latest DVC run",
+                  registry=registry).set(f1_macro)
+            Gauge("spendsense_test_accuracy", "Test accuracy from latest DVC run",
+                  registry=registry).set(acc)
+            push_to_gateway(pushgateway_url, job="spendsense_evaluate", registry=registry)
+            logger.info("Evaluation metrics pushed to Pushgateway at %s", pushgateway_url)
+        except Exception as exc:
+            logger.warning("Could not push metrics to Pushgateway: %s", exc)
 
     return metrics
 

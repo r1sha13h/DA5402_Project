@@ -1,6 +1,5 @@
 # ── Shared volumes ─────────────────────────────────────────────────────────────
 volumes:
-  mlflow_data:
   airflow_db:
   prometheus_data:
   grafana_data:
@@ -20,7 +19,7 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      - mlflow_data:/mlruns
+      - ./mlruns:/mlruns
     command: >
       mlflow server
       --backend-store-uri sqlite:///mlruns/mlflow.db
@@ -48,7 +47,7 @@ services:
       - ./models:/app/models:ro
     environment:
       - MLFLOW_TRACKING_URI=http://mlflow:5000
-      - MODEL_PATH=/app/models/best_model.pt
+      - MODEL_PATH=/app/models/latest_model.pt
       - VOCAB_PATH=/app/data/processed/vocab.pkl
       - LABEL_ENCODER_PATH=/app/data/processed/label_encoder.pkl
     depends_on:
@@ -99,9 +98,44 @@ services:
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////opt/airflow/airflow.db
       - PROJECT_ROOT=/opt/airflow/project
+      - GITHUB_PAT=${GITHUB_PAT:-}
+      - GITHUB_REPO=r1sha13h/DA5402_Project
     command: bash -c "airflow db migrate && airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@spendsense.local || true && airflow standalone"
 
-  # ── 5. Prometheus ────────────────────────────────────────────────────────────
+  # ── 5. Alertmanager ──────────────────────────────────────────────────────────
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: spendsense_alertmanager
+    networks: [spendsense]
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9093/-/healthy || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ── 6. Prometheus Pushgateway ────────────────────────────────────────────────
+  pushgateway:
+    image: prom/pushgateway:v1.8.0
+    container_name: spendsense_pushgateway
+    networks: [spendsense]
+    ports:
+      - "9091:9091"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9091/-/healthy || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ── 7. Prometheus ────────────────────────────────────────────────────────────
   prometheus:
     image: prom/prometheus:v2.52.0
     container_name: spendsense_prometheus
@@ -110,6 +144,7 @@ services:
       - "9090:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
       - prometheus_data:/prometheus
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"

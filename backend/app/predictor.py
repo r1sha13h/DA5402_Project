@@ -15,7 +15,7 @@ import torch
 logger = logging.getLogger(__name__)
 
 # Paths to artefacts (can be overridden by environment variables)
-_MODEL_PATH = os.environ.get("MODEL_PATH", "models/best_model.pt")
+_MODEL_PATH = os.environ.get("MODEL_PATH", "models/latest_model.pt")
 _VOCAB_PATH = os.environ.get("VOCAB_PATH", "data/processed/vocab.pkl")
 _LABEL_ENCODER_PATH = os.environ.get(
     "LABEL_ENCODER_PATH", "data/processed/label_encoder.pkl"

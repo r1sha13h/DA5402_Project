@@ -1,0 +1,76 @@
+groups:
+
+  # ── Inference / API alerts ──────────────────────────────────────────────────
+  - name: spendsense_inference
+    rules:
+      - alert: HighErrorRate
+        expr: spendsense_error_rate > 0.05
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SpendSense high error rate"
+          description: >
+            Error rate is {{ $value | humanizePercentage }} over the last
+            100 requests (threshold: 5%).
+
+      - alert: ModelNotLoaded
+        expr: spendsense_model_loaded == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "SpendSense prediction model is not loaded"
+          description: >
+            The model has been unavailable for more than 1 minute.
+            Check backend logs and /ready endpoint.
+
+      - alert: HighPredictionLatency
+        expr: >
+          histogram_quantile(0.95,
+            rate(spendsense_request_latency_seconds_bucket{endpoint="/predict"}[5m])
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SpendSense high p95 prediction latency"
+          description: >
+            95th-percentile latency on /predict is
+            {{ $value | humanizeDuration }} (threshold: 500 ms).
+
+  # ── Training / DVC pipeline alerts ─────────────────────────────────────────
+  - name: spendsense_training
+    rules:
+      - alert: LowTestF1
+        expr: spendsense_test_f1_macro < 0.70
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "SpendSense test F1 below acceptance threshold"
+          description: >
+            Test macro F1 = {{ $value | humanize }} (threshold: 0.70).
+            Model should not be promoted to production.
+
+      - alert: LowValF1
+        expr: spendsense_training_val_f1 < 0.65
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SpendSense training validation F1 below expected"
+          description: >
+            Best validation F1 = {{ $value | humanize }} (expected ≥ 0.65).
+            Consider tuning hyperparameters.
+
+      - alert: TrainingDurationHigh
+        expr: spendsense_training_duration_seconds > 7200
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SpendSense training took unusually long"
+          description: >
+            Training completed in {{ $value | humanizeDuration }}
+            (threshold: 2 hours). Check for data size increase or resource issues.

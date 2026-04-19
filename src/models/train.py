@@ -21,6 +21,12 @@ from sklearn.metrics import accuracy_score, f1_score
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 
+try:
+    from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
+    _PUSHGATEWAY_AVAILABLE = True
+except ImportError:
+    _PUSHGATEWAY_AVAILABLE = False
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 from src.models.model import BiLSTMClassifier  # noqa: E402
 
@@ -164,7 +170,7 @@ def main() -> None:
         best_val_f1 = 0.0
         patience_counter = 0
         os.makedirs("models", exist_ok=True)
-        best_model_path = os.path.join("models", "best_model.pt")
+        best_model_path = os.path.join("models", "latest_model.pt")
 
         epoch_bar = tqdm(range(1, tp["epochs"] + 1), desc="Epochs", unit="epoch")
         for epoch in epoch_bar:
@@ -219,6 +225,19 @@ def main() -> None:
     with open(metrics_path, "w") as fh:
         json.dump({"best_val_f1_macro": best_val_f1, "mlflow_run_id": run_id}, fh, indent=2)
     logger.info("Training complete. Best val F1: %.4f", best_val_f1)
+
+    # Push training metrics to Prometheus Pushgateway
+    pushgateway_url = os.environ.get("PUSHGATEWAY_URL", "http://localhost:9091")
+    if _PUSHGATEWAY_AVAILABLE:
+        try:
+            registry = CollectorRegistry()
+            g_f1 = Gauge("spendsense_training_val_f1", "Best validation F1 from training run",
+                         registry=registry)
+            g_f1.set(best_val_f1)
+            push_to_gateway(pushgateway_url, job="spendsense_training", registry=registry)
+            logger.info("Training metrics pushed to Pushgateway at %s", pushgateway_url)
+        except Exception as exc:
+            logger.warning("Could not push metrics to Pushgateway: %s", exc)
 
 
 if __name__ == "__main__":
