@@ -15,6 +15,7 @@ data/raw/
 data/ingested/
 data/processed/
 models/best_model.pt
+models/latest_model.pt
 
 # MLflow
 mlruns/
