@@ -1,11 +1,12 @@
 """Apache Airflow DAG — SpendSense data ingestion and validation pipeline.
 
 This DAG runs daily (or on demand) and orchestrates:
-    1. generate_data   — produce synthetic CSV if no real data is present
+    1. verify_raw_data — ensure raw CSV exists in data/raw/
     2. validate_schema — check required columns and types
     3. check_nulls     — detect and report null values
     4. check_drift     — compare distribution to baseline (if baseline exists)
-    5. trigger_dvc     — run `dvc repro` to retrain model when data changes
+    5. run_ingest      — validate and write ingested CSV
+    6. trigger_dvc     — run `dvc repro` to retrain model when data changes
 
 Schedule: @daily  (configurable via AIRFLOW_INGESTION_SCHEDULE env var)
 """
@@ -42,19 +43,18 @@ SCHEDULE = os.environ.get("AIRFLOW_INGESTION_SCHEDULE", "@daily")
 
 # ── Task callables ────────────────────────────────────────────────────────────
 
-def task_generate_data(**context):
-    """Generate synthetic data if the raw CSV does not exist."""
+def task_verify_raw_data(**context):
+    """Verify that the raw CSV exists in data/raw/."""
     if os.path.exists(RAW_PATH):
-        logger.info("Raw data already exists at %s — skipping generation.", RAW_PATH)
-        return {"generated": False, "path": RAW_PATH}
+        import pandas as pd  # noqa: PLC0415
+        df = pd.read_csv(RAW_PATH)
+        logger.info("Raw data found at %s — %d rows.", RAW_PATH, len(df))
+        return {"exists": True, "path": RAW_PATH, "rows": len(df)}
 
-    logger.info("Raw data not found. Generating synthetic dataset ...")
-    sys.path.insert(0, PROJECT_ROOT)
-    from src.data.generate_synthetic import main as gen_main  # noqa: PLC0415
-
-    gen_main(output_path=RAW_PATH, n_samples=6000, seed=42)
-    logger.info("Synthetic data written to %s", RAW_PATH)
-    return {"generated": True, "path": RAW_PATH}
+    raise FileNotFoundError(
+        f"Raw data not found at {RAW_PATH}. "
+        "Please place transactions.csv in data/raw/ before running the pipeline."
+    )
 
 
 def task_validate_schema(**context):
@@ -65,15 +65,13 @@ def task_validate_schema(**context):
         raise FileNotFoundError(f"Raw data not found: {RAW_PATH}")
 
     df = pd.read_csv(RAW_PATH)
-    required = {"description", "amount", "category"}
+    required = {"description", "category"}
     missing = required - set(df.columns)
     if missing:
         raise ValueError(f"Schema validation failed — missing columns: {missing}")
 
     if not all(pd.api.types.is_string_dtype(df[c]) for c in ["description", "category"]):
         raise TypeError("Columns 'description' and 'category' must be string type.")
-    if not pd.api.types.is_numeric_dtype(df["amount"]):
-        raise TypeError("Column 'amount' must be numeric.")
 
     logger.info("Schema validation passed. Rows: %d", len(df))
     return {"rows": len(df), "columns": list(df.columns)}
@@ -84,7 +82,7 @@ def task_check_nulls(**context):
     import pandas as pd  # noqa: PLC0415
 
     df = pd.read_csv(RAW_PATH)
-    null_counts = df[["description", "amount", "category"]].isnull().sum().to_dict()
+    null_counts = df[["description", "category"]].isnull().sum().to_dict()
     total_nulls = sum(null_counts.values())
 
     if total_nulls > 0:
@@ -183,9 +181,9 @@ with DAG(
     tags=["spendsense", "data-engineering", "mlops"],
 ) as dag:
 
-    generate_data = PythonOperator(
-        task_id="generate_data",
-        python_callable=task_generate_data,
+    verify_raw_data = PythonOperator(
+        task_id="verify_raw_data",
+        python_callable=task_verify_raw_data,
     )
 
     validate_schema = PythonOperator(
@@ -214,4 +212,4 @@ with DAG(
     )
 
     # Pipeline dependency chain
-    generate_data >> validate_schema >> check_nulls >> check_drift >> run_ingest >> trigger_dvc
+    verify_raw_data >> validate_schema >> check_nulls >> check_drift >> run_ingest >> trigger_dvc

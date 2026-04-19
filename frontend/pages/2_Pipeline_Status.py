@@ -112,7 +112,6 @@ st.subheader("🔁 DVC Pipeline Stages")
 st.markdown("The DVC DAG defines the reproducible ML pipeline:")
 
 stages = [
-    ("generate", "Generate synthetic data", "src/data/generate_synthetic.py", "data/raw/"),
     ("ingest", "Schema + null validation", "src/data/ingest.py", "data/ingested/"),
     ("preprocess", "Tokenise, build vocab, split", "src/data/preprocess.py", "data/processed/"),
     ("train", "Train BiLSTM + MLflow logging", "src/models/train.py", "models/best_model.pt"),

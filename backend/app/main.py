@@ -81,7 +81,8 @@ def ready() -> ReadyResponse:
     """Readiness probe — returns 200 only if the model is loaded."""
     if predictor.is_ready:
         REQUEST_COUNT.labels(endpoint="/ready", status="200").inc()
-        return ReadyResponse(ready=True, model_loaded=True)
+        msg = f"run_id={predictor.current_run_id}" if predictor.current_run_id else "disk"
+        return ReadyResponse(ready=True, model_loaded=True, message=f"Model source: {msg}")
     REQUEST_COUNT.labels(endpoint="/ready", status="503").inc()
     raise HTTPException(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -168,6 +169,36 @@ def predict_batch(request: BatchPredictRequest) -> BatchPredictResponse:
         logger.exception("Batch prediction error: %s", exc)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail="Internal batch prediction error.") from exc
+
+
+@app.get("/models", tags=["Model Management"])
+def list_models():
+    """List available MLflow experiment runs for model selection."""
+    runs = predictor.list_mlflow_runs()
+    return {
+        "current_run_id": predictor.current_run_id,
+        "runs": runs,
+    }
+
+
+@app.post("/models/switch", tags=["Model Management"])
+def switch_model(request: dict):
+    """Switch the active model to one from a specific MLflow run.
+
+    Args:
+        request: JSON body with 'run_id' key.
+    """
+    run_id = request.get("run_id")
+    if not run_id:
+        raise HTTPException(status_code=422, detail="run_id is required.")
+    success = predictor.load_from_mlflow(run_id)
+    if success:
+        MODEL_LOADED.set(1)
+        return {"status": "ok", "run_id": run_id, "message": "Model switched successfully."}
+    raise HTTPException(
+        status_code=500,
+        detail=f"Failed to load model from MLflow run {run_id}.",
+    )
 
 
 @app.get("/metrics", tags=["Monitoring"])

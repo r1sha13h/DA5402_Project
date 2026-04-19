@@ -5,8 +5,10 @@ import os
 import pickle
 import re
 import sys
-from typing import Dict, List, Optional, Tuple
+import tempfile
+from typing import Any, Dict, List, Optional, Tuple
 
+import mlflow
 import numpy as np
 import torch
 
@@ -38,6 +40,7 @@ class SpendSensePredictor:
         self.label_encoder = None
         self.max_seq_len: int = _MAX_SEQ_LEN
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.current_run_id: Optional[str] = None
 
     def load(self) -> bool:
         """Load all artefacts from disk.
@@ -85,6 +88,110 @@ class SpendSensePredictor:
     def is_ready(self) -> bool:
         """Return True if the model is loaded and ready for inference."""
         return self.model is not None
+
+    def load_from_mlflow(self, run_id: str) -> bool:
+        """Load model artefacts from an MLflow run.
+
+        Args:
+            run_id: The MLflow run ID to load artefacts from.
+
+        Returns:
+            True if loading succeeded, False otherwise.
+        """
+        try:
+            import yaml
+            sys.path.insert(0, os.path.abspath("."))
+            from src.models.model import BiLSTMClassifier  # noqa: PLC0415
+
+            tracking_uri = os.environ.get("MLFLOW_TRACKING_URI", "mlruns")
+            mlflow.set_tracking_uri(tracking_uri)
+
+            with tempfile.TemporaryDirectory() as tmpdir:
+                # Download artefacts from the MLflow run
+                art_path = mlflow.artifacts.download_artifacts(
+                    run_id=run_id, dst_path=tmpdir
+                )
+
+                params_file = os.path.join(art_path, "params.yaml")
+                vocab_file = os.path.join(art_path, "vocab.pkl")
+                le_file = os.path.join(art_path, "label_encoder.pkl")
+                model_dir = os.path.join(art_path, "model")
+
+                with open(params_file, "r") as fh:
+                    params = yaml.safe_load(fh)
+                tp = params["train"]
+
+                with open(vocab_file, "rb") as fh:
+                    self.vocab = pickle.load(fh)
+                with open(le_file, "rb") as fh:
+                    self.label_encoder = pickle.load(fh)
+
+                self.max_seq_len = params["preprocess"]["max_seq_len"]
+                num_classes = len(self.label_encoder.classes_)
+                vocab_size = len(self.vocab)
+
+                self.model = BiLSTMClassifier(
+                    vocab_size=vocab_size,
+                    embed_dim=tp["embed_dim"],
+                    hidden_dim=tp["hidden_dim"],
+                    num_classes=num_classes,
+                    num_layers=tp["num_layers"],
+                    dropout=tp["dropout"],
+                ).to(self.device)
+
+                # MLflow stores pytorch model; load state_dict from data/model.pth
+                model_pth = os.path.join(model_dir, "data", "model.pth")
+                self.model.load_state_dict(
+                    torch.load(model_pth, map_location=self.device, weights_only=True)
+                )
+                self.model.eval()
+
+            self.current_run_id = run_id
+            logger.info("Model loaded from MLflow run_id=%s on %s", run_id, self.device)
+            return True
+        except Exception as exc:
+            logger.exception("Failed to load model from MLflow run %s: %s", run_id, exc)
+            return False
+
+    @staticmethod
+    def list_mlflow_runs(max_results: int = 20) -> List[Dict[str, Any]]:
+        """List recent MLflow runs for the SpendSense experiment.
+
+        Args:
+            max_results: Maximum number of runs to return.
+
+        Returns:
+            List of dicts with run_id, metrics, start_time, status.
+        """
+        tracking_uri = os.environ.get("MLFLOW_TRACKING_URI", "mlruns")
+        mlflow.set_tracking_uri(tracking_uri)
+
+        try:
+            experiment = mlflow.get_experiment_by_name("SpendSense")
+            if experiment is None:
+                return []
+
+            runs = mlflow.search_runs(
+                experiment_ids=[experiment.experiment_id],
+                order_by=["start_time DESC"],
+                max_results=max_results,
+            )
+
+            result = []
+            for _, row in runs.iterrows():
+                result.append({
+                    "run_id": row["run_id"],
+                    "status": row.get("status", ""),
+                    "start_time": str(row.get("start_time", "")),
+                    "best_val_f1": row.get("metrics.best_val_f1_macro", None),
+                    "val_acc": row.get("metrics.val_acc", None),
+                    "max_epochs": row.get("params.max_epochs", None),
+                    "batch_size": row.get("params.batch_size", None),
+                })
+            return result
+        except Exception as exc:
+            logger.exception("Failed to list MLflow runs: %s", exc)
+            return []
 
     def _tokenize(self, text: str) -> List[int]:
         """Tokenise and encode a single description.

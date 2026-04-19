@@ -75,7 +75,6 @@ DA5402_Project/
 │       └── 2_Pipeline_Status.py    # Service health + live metrics
 ├── src/
 │   ├── data/
-│   │   ├── generate_synthetic.py   # Synthetic data generator
 │   │   ├── ingest.py               # DVC stage: ingest + validate
 │   │   └── preprocess.py           # DVC stage: tokenise + split
 │   └── models/
@@ -206,7 +205,7 @@ curl http://localhost:8000/metrics
 2. Login: `admin` / `admin`
 3. Find `spendsense_ingestion_pipeline`
 4. Click ▶ to trigger a manual run
-5. Watch all 6 tasks: generate_data → validate_schema → check_nulls → check_drift → run_ingest → trigger_dvc
+5. Watch the tasks: validate_schema → check_nulls → check_drift → run_ingest → trigger_dvc
 
 ### 7 — View the Grafana Dashboard
 
@@ -241,8 +240,8 @@ The workflow at `.github/workflows/ci.yml` is the **top-level orchestrator** tha
 | Job | Trigger | What it does |
 |---|---|---|
 | `test` | All pushes + PRs | Lint (flake8) + pytest |
-| `ml-pipeline` | Push to `main` only | `dvc repro` + metric validation (F1 ≥ 0.70) |
-| `docker` | Push to `main` only | Docker build + smoke tests on all endpoints |
+| `ml-pipeline` | Push to `main` only | `dvc repro` + metric validation + MLflow/Airflow/Prometheus/Grafana smoke tests |
+| `app` | Push to `main` only | Streamlit + FastAPI build + smoke tests (`/predict`, `/models`, frontend) |
 
 **Setup a self-hosted runner** (required, no cloud):
 
@@ -250,11 +249,23 @@ The workflow at `.github/workflows/ci.yml` is the **top-level orchestrator** tha
 # On your local machine:
 # 1. Go to GitHub repo → Settings → Actions → Runners → New self-hosted runner
 # 2. Follow the instructions to download and configure the runner
-# 3. Start it:
+# 3. Start it as a background service (recommended):
+./svc.sh install
+./svc.sh start
+
+# Alternative: run the runner in the foreground
 ./run.sh
+
+# If you started it in the foreground instead, stop it with Ctrl+C.
+
+# Service commands:
+./svc.sh stop
+./svc.sh uninstall
 ```
 
 Once the runner is active, every `git push` to `main` will trigger the full pipeline.
+
+If the runner is launched with `./run.sh`, it will keep listening in that terminal until you press `Ctrl+C`. Using `./svc.sh start` is preferred because it runs the runner in the background and can be controlled cleanly. Service mode can also be configured to start automatically on boot.
 
 ---
 
@@ -284,15 +295,15 @@ mlflow run . -P embed_dim=256 -P hidden_dim=512 -P learning_rate=0.0005
 
 ## DVC Pipeline
 
-The `dvc.yaml` defines 5 reproducible stages:
+The `dvc.yaml` defines 4 reproducible stages:
 
 ```
-generate → ingest → preprocess → train → evaluate
+ingest → preprocess → train → evaluate
 ```
 
 Run individual stages:
 ```bash
-dvc repro generate   # Only regenerate data
+dvc repro ingest     # Only re-ingest data
 dvc repro preprocess # Only rerun preprocessing
 dvc repro train      # Only retrain
 dvc repro            # Full pipeline (incremental)
@@ -305,15 +316,15 @@ dvc repro            # Full pipeline (incremental)
 | Category | Examples |
 |---|---|
 | Food & Dining | Zomato, Swiggy, restaurant bill |
-| Transport | Uber, Ola, petrol pump, metro |
-| Utilities | BESCOM bill, Jio recharge, LPG |
-| Entertainment | Netflix, BookMyShow, Spotify |
-| Shopping | Amazon, Flipkart, Myntra |
-| Healthcare | Apollo pharmacy, lab tests |
-| Education | Coursera, college fees |
-| Travel | MakeMyTrip, hotel booking |
-| Housing | Rent, society maintenance |
-| Finance | Credit card payment, SIP, LIC |
+| Transportation | Uber, Ola, petrol pump, metro |
+| Utilities & Services | BESCOM bill, Jio recharge, internet |
+| Entertainment & Recreation | Netflix, BookMyShow, Spotify |
+| Shopping & Retail | Amazon, Flipkart, Myntra |
+| Healthcare & Medical | Apollo pharmacy, lab tests |
+| Financial Services | Credit card payment, SIP, LIC |
+| Income | Salary, freelance payment, refund |
+| Government & Legal | Tax payment, passport fees, court fees |
+| Charity & Donations | NGO donation, temple donation |
 
 ---
 

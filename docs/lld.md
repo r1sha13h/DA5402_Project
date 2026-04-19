@@ -25,8 +25,8 @@
   "confidence": 0.91,
   "all_scores": {
     "Food & Dining": 0.91,
-    "Transport": 0.03,
-    "Utilities": 0.02,
+    "Transportation": 0.02,
+    "Utilities & Services": 0.01,
     ...
   }
 }
@@ -119,10 +119,6 @@ Key metrics exposed:
 
 ## 2. Module Breakdown
 
-### src/data/generate_synthetic.py
-- `generate_dataset(n_samples, seed) → pd.DataFrame`
-- `main(output_path, n_samples, seed) → None`
-
 ### src/data/ingest.py
 - `validate_schema(df) → None` — raises ValueError on schema mismatch
 - `validate_nulls(df) → pd.DataFrame` — drops null rows
@@ -172,13 +168,12 @@ vocab: dict[str, int]
 ### Label Encoder
 ```python
 label_encoder.classes_: np.ndarray
-# ["Education", "Entertainment", "Finance", "Food & Dining", ...]
+# ["Charity & Donations", "Entertainment & Recreation", "Financial Services", "Food & Dining", ...]
 ```
 
 ### DVC Pipeline Outputs
 | Stage | Output |
 |---|---|
-| generate | data/raw/transactions.csv |
 | ingest | data/ingested/transactions.csv, baseline_stats.json |
 | preprocess | data/processed/{X,y}_{train,val,test}.npy, vocab.pkl, label_encoder.pkl |
 | train | models/best_model.pt, metrics/train_metrics.json |

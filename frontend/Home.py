@@ -9,15 +9,15 @@ BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8000")
 
 CATEGORY_ICONS = {
     "Food & Dining": "🍽️",
-    "Transport": "🚗",
-    "Utilities": "💡",
-    "Entertainment": "🎬",
-    "Shopping": "🛍️",
-    "Healthcare": "🏥",
-    "Education": "📚",
-    "Travel": "✈️",
-    "Housing": "🏠",
-    "Finance": "💰",
+    "Transportation": "🚗",
+    "Utilities & Services": "💡",
+    "Entertainment & Recreation": "🎬",
+    "Shopping & Retail": "🛍️",
+    "Healthcare & Medical": "🏥",
+    "Financial Services": "�",
+    "Income": "💵",
+    "Government & Legal": "�️",
+    "Charity & Donations": "🤝",
 }
 
 st.set_page_config(
@@ -44,11 +44,64 @@ with st.sidebar:
     try:
         resp = requests.get(f"{BACKEND_URL}/ready", timeout=2)
         if resp.status_code == 200:
+            ready_data = resp.json()
             st.success("✅ Model ready")
+            if ready_data.get("message"):
+                st.caption(ready_data["message"])
         else:
             st.warning("⚠️ Model loading...")
     except requests.exceptions.RequestException:
         st.error("❌ Backend unreachable")
+
+    # ── Model Selection ──────────────────────────────────────────────────────
+    st.divider()
+    st.markdown("**🔀 Model Selection**")
+    try:
+        models_resp = requests.get(f"{BACKEND_URL}/models", timeout=5)
+        if models_resp.status_code == 200:
+            models_data = models_resp.json()
+            runs = models_data.get("runs", [])
+            current_run_id = models_data.get("current_run_id")
+
+            if runs:
+                run_options = {}
+                for r in runs:
+                    f1 = r.get("best_val_f1")
+                    f1_str = f" | F1={f1:.4f}" if f1 else ""
+                    ts = r.get("start_time", "")[:19]
+                    label = f"{r['run_id'][:8]}...{f1_str} | {ts}"
+                    run_options[label] = r["run_id"]
+
+                selected_label = st.selectbox(
+                    "Choose MLflow Run",
+                    options=list(run_options.keys()),
+                    index=0,
+                )
+                selected_run_id = run_options[selected_label]
+
+                active_marker = "✅ Active" if selected_run_id == current_run_id else ""
+                if active_marker:
+                    st.caption(active_marker)
+
+                if st.button("🚀 Load this model", use_container_width=True):
+                    with st.spinner("Switching model..."):
+                        switch_resp = requests.post(
+                            f"{BACKEND_URL}/models/switch",
+                            json={"run_id": selected_run_id},
+                            timeout=30,
+                        )
+                        if switch_resp.status_code == 200:
+                            st.success(f"Model switched to `{selected_run_id[:8]}...`")
+                            st.rerun()
+                        else:
+                            detail = switch_resp.json().get("detail", "Unknown error")
+                            st.error(f"Switch failed: {detail}")
+            else:
+                st.info("No MLflow runs found yet.")
+        else:
+            st.warning("Could not fetch model list.")
+    except requests.exceptions.RequestException:
+        st.caption("⚠️ MLflow unavailable — using disk model.")
 
 # ── Main content ──────────────────────────────────────────────────────────────
 st.title("💸 SpendSense")

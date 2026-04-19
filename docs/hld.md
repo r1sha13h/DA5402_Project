@@ -44,7 +44,7 @@ BiLSTM Model + Vocab + LabelEncoder
 - **Architecture:** Bidirectional LSTM (2 layers, 256 hidden dim per direction)
 - **Input:** Padded word-index sequence (length 50)
 - **Output:** Softmax over 10 expense categories
-- **Training data:** 6,000 synthetic labelled transactions (balanced across 10 categories)
+- **Training data:** ~1.4M real labelled transactions from HuggingFace (10 categories)
 - **Performance target:** macro F1 ≥ 0.70 (enforced in CI pipeline)
 
 ## 6. Expense Categories (10 classes)
@@ -52,15 +52,15 @@ BiLSTM Model + Vocab + LabelEncoder
 | Category | Examples |
 |---|---|
 | Food & Dining | Zomato, Swiggy, restaurant bill |
-| Transport | Uber, Ola, petrol pump |
-| Utilities | BESCOM bill, Jio recharge |
-| Entertainment | Netflix, BookMyShow |
-| Shopping | Amazon, Flipkart, Myntra |
-| Healthcare | Apollo pharmacy, lab tests |
-| Education | Coursera, college fees |
-| Travel | MakeMyTrip, hotel booking |
-| Housing | Rent payment, society maintenance |
-| Finance | Credit card payment, SIP, LIC premium |
+| Transportation | Uber, Ola, petrol pump |
+| Utilities & Services | BESCOM bill, Jio recharge, internet |
+| Entertainment & Recreation | Netflix, BookMyShow, gaming |
+| Shopping & Retail | Amazon, Flipkart, Myntra |
+| Healthcare & Medical | Apollo pharmacy, lab tests |
+| Financial Services | Credit card payment, SIP, LIC premium |
+| Income | Salary, freelance payment, refund |
+| Government & Legal | Tax payment, passport fees, court fees |
+| Charity & Donations | NGO donation, temple donation |
 
 ## 7. CI/CD Design
 
@@ -82,5 +82,5 @@ git push → GitHub Actions
 
 - All inter-service communication is within Docker bridge network
 - CORS is configured to allow frontend → backend communication
-- No sensitive data — synthetic dataset only
+- No sensitive data — public HuggingFace dataset only
 - Grafana and Airflow web UIs protected by username/password (admin/admin for dev)

@@ -21,25 +21,28 @@ def mock_predictor():
         "Food & Dining",
         0.91,
         {
-            "Food & Dining": 0.91, "Transport": 0.03, "Utilities": 0.02,
-            "Entertainment": 0.01, "Shopping": 0.01, "Healthcare": 0.01,
-            "Education": 0.00, "Travel": 0.00, "Housing": 0.00, "Finance": 0.01,
+            "Food & Dining": 0.91, "Transportation": 0.02, "Utilities & Services": 0.01,
+            "Entertainment & Recreation": 0.01, "Shopping & Retail": 0.01,
+            "Healthcare & Medical": 0.01, "Financial Services": 0.01,
+            "Income": 0.00, "Government & Legal": 0.01, "Charity & Donations": 0.01,
         },
     )
     mock.predict_batch.return_value = [
         (
             "Food & Dining",
             0.88,
-            {"Food & Dining": 0.88, "Transport": 0.05, "Utilities": 0.03,
-             "Entertainment": 0.01, "Shopping": 0.01, "Healthcare": 0.01,
-             "Education": 0.00, "Travel": 0.00, "Housing": 0.00, "Finance": 0.01},
+            {"Food & Dining": 0.88, "Transportation": 0.03, "Utilities & Services": 0.02,
+             "Entertainment & Recreation": 0.01, "Shopping & Retail": 0.01,
+             "Healthcare & Medical": 0.01, "Financial Services": 0.01,
+             "Income": 0.01, "Government & Legal": 0.01, "Charity & Donations": 0.01},
         ),
         (
-            "Transport",
+            "Transportation",
             0.92,
-            {"Food & Dining": 0.02, "Transport": 0.92, "Utilities": 0.02,
-             "Entertainment": 0.01, "Shopping": 0.01, "Healthcare": 0.01,
-             "Education": 0.00, "Travel": 0.00, "Housing": 0.00, "Finance": 0.01},
+            {"Food & Dining": 0.02, "Transportation": 0.92, "Utilities & Services": 0.01,
+             "Entertainment & Recreation": 0.01, "Shopping & Retail": 0.01,
+             "Healthcare & Medical": 0.01, "Financial Services": 0.01,
+             "Income": 0.00, "Government & Legal": 0.01, "Charity & Donations": 0.00},
         ),
     ]
     return mock
