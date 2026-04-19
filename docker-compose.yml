@@ -15,6 +15,7 @@ services:
   mlflow:
     image: ghcr.io/mlflow/mlflow:v3.11.1
     container_name: spendsense_mlflow
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
     networks: [spendsense]
     ports:
       - "5000:5000"
