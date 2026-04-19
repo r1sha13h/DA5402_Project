@@ -17,6 +17,8 @@ import os
 import subprocess
 from datetime import datetime, timedelta
 
+import requests
+
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
@@ -143,28 +145,56 @@ def task_run_ingest(**context):
 
 
 def task_trigger_dvc(**context):
-    """Trigger `dvc repro` to re-run the ML pipeline when data changes.
+    """Trigger the CI/CD pipeline via GitHub Actions when data drift is detected.
 
-    Skips if DVC is not installed or if no data change is detected.
+    Posts a workflow_dispatch event to GitHub Actions, which runs the full DVC
+    pipeline (ingest → preprocess → train → evaluate) in a controlled environment
+    with proper MLflow / Prometheus integration. Skips if no drift is detected.
+
+    Requires GITHUB_PAT and GITHUB_REPO environment variables.
     """
     ti = context["ti"]
     drift_result = ti.xcom_pull(task_ids="check_drift")
     drift_detected = drift_result.get("drift_detected", False) if drift_result else False
 
     if not drift_detected:
-        logger.info("No drift detected — skipping dvc repro.")
+        logger.info("No drift detected — skipping GitHub Actions trigger.")
         return {"skipped": True}
 
-    result = subprocess.run(
-        ["dvc", "repro"],
-        capture_output=True,
-        text=True,
-        cwd=PROJECT_ROOT,
-    )
-    logger.info("DVC stdout: %s", result.stdout[:2000])
-    if result.returncode != 0:
-        logger.warning("DVC repro exited with code %d: %s", result.returncode, result.stderr[:500])
-    return {"returncode": result.returncode, "triggered": True}
+    github_pat = os.environ.get("GITHUB_PAT", "")
+    github_repo = os.environ.get("GITHUB_REPO", "r1sha13h/DA5402_Project")
+
+    if not github_pat:
+        logger.warning("GITHUB_PAT not set — cannot trigger GitHub Actions workflow.")
+        return {"skipped": True, "reason": "GITHUB_PAT not configured"}
+
+    api_url = f"https://api.github.com/repos/{github_repo}/actions/workflows/ci.yml/dispatches"
+    headers = {
+        "Authorization": f"Bearer {github_pat}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    payload = {
+        "ref": "main",
+        "inputs": {
+            "run_full_pipeline": "true",
+        },
+    }
+
+    try:
+        response = requests.post(api_url, headers=headers, json=payload, timeout=30)
+        if response.status_code == 204:
+            logger.info("GitHub Actions workflow dispatched successfully.")
+            return {"triggered": True, "status_code": 204}
+        else:
+            logger.warning(
+                "GitHub Actions dispatch returned HTTP %d: %s",
+                response.status_code, response.text[:500],
+            )
+            return {"triggered": False, "status_code": response.status_code}
+    except requests.RequestException as exc:
+        logger.error("Failed to trigger GitHub Actions: %s", exc)
+        raise RuntimeError(f"GitHub Actions dispatch failed: {exc}") from exc
 
 
 # ── DAG definition ────────────────────────────────────────────────────────────
