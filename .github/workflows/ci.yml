@@ -28,6 +28,9 @@ jobs:
     name: Lint & Unit Tests
     runs-on: self-hosted
     steps:
+      - name: Fix workspace permissions (root-owned container files)
+        run: sudo chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE" 2>/dev/null || true
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -61,6 +64,9 @@ jobs:
       github.ref == 'refs/heads/main' ||
       github.event_name == 'workflow_dispatch' && inputs.run_full_pipeline == 'true'
     steps:
+      - name: Fix workspace permissions (root-owned container files)
+        run: sudo chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE" 2>/dev/null || true
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -212,6 +218,10 @@ jobs:
             params.yaml
           retention-days: 1
 
+      - name: Fix mlruns permissions for next run
+        if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" mlruns/ 2>/dev/null || true
+
   # ── Job 3: Streamlit + FastAPI ────────────────────────────────────────────
   # Uses artifacts from Job 2 — no retraining.
   app:
@@ -220,6 +230,9 @@ jobs:
     needs: ml-pipeline
     if: github.ref == 'refs/heads/main'
     steps:
+      - name: Fix workspace permissions (root-owned container files)
+        run: sudo chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE" 2>/dev/null || true
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
