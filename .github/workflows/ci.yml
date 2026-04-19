@@ -74,10 +74,18 @@ jobs:
         run: |
           python -c "import torch; print(f'torch={torch.__version__}, CUDA={torch.cuda.is_available()}')"
 
-      - name: Verify raw data exists
+      - name: Ensure raw data exists
         run: |
-          test -f data/raw/transactions.csv || \
-            (echo "FAIL: data/raw/transactions.csv not found. Place real data in data/raw/ before running." && exit 1)
+          if [ ! -f data/raw/transactions.csv ]; then
+            RUNNER_DATA="/home/rishabh/Documents/IITM/MLOps/Project/DA5402_Project/data/raw/transactions.csv"
+            if [ -f "$RUNNER_DATA" ]; then
+              echo "Copying raw data from runner project directory..."
+              mkdir -p data/raw
+              cp "$RUNNER_DATA" data/raw/transactions.csv
+            else
+              echo "FAIL: data/raw/transactions.csv not found on runner." && exit 1
+            fi
+          fi
           echo "Raw data ready: $(wc -l < data/raw/transactions.csv) lines"
 
       - name: DVC pull cached stages
