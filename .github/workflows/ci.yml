@@ -268,9 +268,13 @@ jobs:
 
       - name: Smoke test — Streamlit frontend
         run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8501)
-          [ "$STATUS" == "200" ] || (echo "Streamlit health check failed: HTTP $STATUS" && exit 1)
-          echo "Streamlit frontend PASSED."
+          for i in $(seq 1 20); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8501 2>/dev/null) || STATUS="000"
+            [ "$STATUS" == "200" ] && echo "Streamlit frontend PASSED." && exit 0
+            echo "Waiting for Streamlit... ($i/20) [HTTP $STATUS]"
+            sleep 5
+          done
+          echo "Streamlit health check failed after 20 attempts: HTTP $STATUS" && exit 1
 
       - name: Tear down all services
         if: always()
