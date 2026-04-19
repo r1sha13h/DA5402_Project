@@ -28,9 +28,6 @@ jobs:
     name: Lint & Unit Tests
     runs-on: self-hosted
     steps:
-      - name: Fix workspace permissions (root-owned container files)
-        run: sudo chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE" 2>/dev/null || true
-
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -64,9 +61,6 @@ jobs:
       github.ref == 'refs/heads/main' ||
       github.event_name == 'workflow_dispatch' && inputs.run_full_pipeline == 'true'
     steps:
-      - name: Fix workspace permissions (root-owned container files)
-        run: sudo chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE" 2>/dev/null || true
-
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -78,6 +72,11 @@ jobs:
           source /home/rishabh/Documents/IITM/MLOps/Project/DA5402_Project/venv/bin/activate
           echo "PATH=$PATH" >> "$GITHUB_ENV"
           echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> "$GITHUB_ENV"
+
+      - name: Export host UID/GID for docker-compose
+        run: |
+          echo "HOST_UID=$(id -u)" >> "$GITHUB_ENV"
+          echo "HOST_GID=$(id -g)" >> "$GITHUB_ENV"
 
       - name: Verify torch + CUDA GPU
         run: |
@@ -104,6 +103,9 @@ jobs:
 
       - name: Build infra Docker images
         run: docker compose build mlflow alertmanager pushgateway prometheus grafana
+
+      - name: Pre-create mlruns directory (owned by runner user)
+        run: mkdir -p mlruns/artifacts
 
       - name: Start infra services (before DVC pipeline)
         run: docker compose up -d mlflow alertmanager pushgateway prometheus grafana
@@ -218,10 +220,6 @@ jobs:
             params.yaml
           retention-days: 1
 
-      - name: Fix mlruns permissions for next run
-        if: always()
-        run: sudo chown -R "$(id -u):$(id -g)" mlruns/ 2>/dev/null || true
-
   # ── Job 3: Streamlit + FastAPI ────────────────────────────────────────────
   # Uses artifacts from Job 2 — no retraining.
   app:
@@ -230,9 +228,6 @@ jobs:
     needs: ml-pipeline
     if: github.ref == 'refs/heads/main'
     steps:
-      - name: Fix workspace permissions (root-owned container files)
-        run: sudo chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE" 2>/dev/null || true
-
       - name: Checkout repository
         uses: actions/checkout@v4
 
