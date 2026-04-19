@@ -13,7 +13,7 @@ services:
 
   # ── 1. MLflow Tracking Server ────────────────────────────────────────────────
   mlflow:
-    image: ghcr.io/mlflow/mlflow:v2.13.0
+    image: ghcr.io/mlflow/mlflow:v3.11.1
     container_name: spendsense_mlflow
     networks: [spendsense]
     ports:
