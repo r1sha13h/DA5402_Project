@@ -28,6 +28,11 @@ jobs:
     name: Lint & Unit Tests
     runs-on: self-hosted
     steps:
+      - name: Remove root-owned workspace files (via Docker)
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE":/workspace alpine \
+            sh -c "rm -rf /workspace/mlruns" 2>/dev/null || true
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -61,6 +66,11 @@ jobs:
       github.ref == 'refs/heads/main' ||
       github.event_name == 'workflow_dispatch' && inputs.run_full_pipeline == 'true'
     steps:
+      - name: Remove root-owned workspace files (via Docker)
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE":/workspace alpine \
+            sh -c "rm -rf /workspace/mlruns" 2>/dev/null || true
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
