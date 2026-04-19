@@ -64,6 +64,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Tear down any leftover containers
+        run: docker compose down -v --remove-orphans || true
+
       - name: Activate project venv
         run: |
           source /home/rishabh/Documents/IITM/MLOps/Project/DA5402_Project/venv/bin/activate
