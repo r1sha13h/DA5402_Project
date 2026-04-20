@@ -112,6 +112,117 @@
           "datasource": "Prometheus"
         }
       ]
+    },
+    {
+      "id": 8,
+      "title": "— Training Metrics —",
+      "type": "text",
+      "gridPos": { "x": 0, "y": 20, "w": 24, "h": 2 },
+      "options": { "content": "## Training & Evaluation Metrics", "mode": "markdown" }
+    },
+    {
+      "id": 9,
+      "title": "Training Val F1 (Macro)",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 22, "w": 6, "h": 6 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "value_and_name",
+        "thresholds": {
+          "steps": [
+            { "color": "red", "value": 0 },
+            { "color": "yellow", "value": 0.70 },
+            { "color": "green", "value": 0.85 }
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "spendsense_training_val_f1",
+          "legendFormat": "Val F1",
+          "datasource": "Prometheus"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Test F1 Macro",
+      "type": "stat",
+      "gridPos": { "x": 6, "y": 22, "w": 6, "h": 6 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "value_and_name",
+        "thresholds": {
+          "steps": [
+            { "color": "red", "value": 0 },
+            { "color": "yellow", "value": 0.70 },
+            { "color": "green", "value": 0.85 }
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "spendsense_test_f1_macro",
+          "legendFormat": "Test F1",
+          "datasource": "Prometheus"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "title": "Test Accuracy",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 22, "w": 6, "h": 6 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "value_and_name",
+        "thresholds": {
+          "steps": [
+            { "color": "red", "value": 0 },
+            { "color": "yellow", "value": 0.70 },
+            { "color": "green", "value": 0.85 }
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "spendsense_test_accuracy",
+          "legendFormat": "Accuracy",
+          "datasource": "Prometheus"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "title": "Training Duration (s)",
+      "type": "stat",
+      "gridPos": { "x": 18, "y": 22, "w": 6, "h": 6 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "thresholds": {
+          "steps": [
+            { "color": "green", "value": 0 },
+            { "color": "yellow", "value": 1800 },
+            { "color": "red", "value": 3600 }
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "spendsense_training_duration_seconds",
+          "legendFormat": "Duration",
+          "datasource": "Prometheus"
+        }
+      ]
     }
   ]
 }

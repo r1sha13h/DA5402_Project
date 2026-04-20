@@ -10,6 +10,7 @@ import logging
 import os
 import pickle
 import sys
+import time
 
 import mlflow
 import mlflow.pytorch
@@ -172,6 +173,7 @@ def main() -> None:
         os.makedirs("models", exist_ok=True)
         best_model_path = os.path.join("models", "latest_model.pt")
 
+        training_start = time.time()
         epoch_bar = tqdm(range(1, tp["epochs"] + 1), desc="Epochs", unit="epoch")
         for epoch in epoch_bar:
             tr_loss, tr_acc, tr_f1 = run_epoch(
@@ -227,13 +229,15 @@ def main() -> None:
     logger.info("Training complete. Best val F1: %.4f", best_val_f1)
 
     # Push training metrics to Prometheus Pushgateway
+    training_duration = time.time() - training_start
     pushgateway_url = os.environ.get("PUSHGATEWAY_URL", "http://localhost:9091")
     if _PUSHGATEWAY_AVAILABLE:
         try:
             registry = CollectorRegistry()
-            g_f1 = Gauge("spendsense_training_val_f1", "Best validation F1 from training run",
-                         registry=registry)
-            g_f1.set(best_val_f1)
+            Gauge("spendsense_training_val_f1", "Best validation F1 from training run",
+                  registry=registry).set(best_val_f1)
+            Gauge("spendsense_training_duration_seconds", "Total training wall-clock time in seconds",
+                  registry=registry).set(training_duration)
             push_to_gateway(pushgateway_url, job="spendsense_training", registry=registry)
             logger.info("Training metrics pushed to Pushgateway at %s", pushgateway_url)
         except Exception as exc:
