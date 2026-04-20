@@ -236,7 +236,8 @@ def main() -> None:
             registry = CollectorRegistry()
             Gauge("spendsense_training_val_f1", "Best validation F1 from training run",
                   registry=registry).set(best_val_f1)
-            Gauge("spendsense_training_duration_seconds", "Total training wall-clock time in seconds",
+            Gauge("spendsense_training_duration_seconds",
+                  "Total training wall-clock time in seconds",
                   registry=registry).set(training_duration)
             push_to_gateway(pushgateway_url, job="spendsense_training", registry=registry)
             logger.info("Training metrics pushed to Pushgateway at %s", pushgateway_url)
