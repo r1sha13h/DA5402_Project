@@ -90,12 +90,23 @@ jobs:
 
       - name: Verify torch + CUDA GPU
         run: |
-          python -c "
+          for attempt in 1 2 3; do
+            if python -c "
           import torch
           print(f'torch={torch.__version__}')
-          assert torch.cuda.is_available(), 'FAIL: CUDA GPU not available — training requires a GPU.'
+          assert torch.cuda.is_available(), 'CUDA not available'
           print(f'CUDA={torch.version.cuda}, GPU={torch.cuda.get_device_name(0)}')
-          "
+          "; then
+              echo "CUDA GPU verified on attempt $attempt."
+              break
+            fi
+            echo "Attempt $attempt/3 failed — GPU may still be releasing. Waiting 10s..."
+            sleep 10
+            if [ "$attempt" -eq 3 ]; then
+              echo "FAIL: CUDA GPU not available after 3 attempts — training requires a GPU."
+              exit 1
+            fi
+          done
 
       - name: Ensure raw data exists
         run: |
