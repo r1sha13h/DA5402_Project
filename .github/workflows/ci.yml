@@ -75,7 +75,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Tear down any leftover containers
-        run: docker compose down -v --remove-orphans || true
+        run: docker compose down --remove-orphans || true
 
       - name: Activate project venv
         run: |
@@ -162,6 +162,17 @@ jobs:
           [ "$STATUS" == "200" ] || (echo "Pushgateway health check failed: HTTP $STATUS" && exit 1)
           echo "Pushgateway smoke test PASSED."
 
+      - name: Restore MLflow runs from project directory
+        run: |
+          PROJ_MLRUNS="/home/rishabh/Documents/IITM/MLOps/Project/DA5402_Project/mlruns"
+          if [ -d "$PROJ_MLRUNS" ] && [ "$(ls -A "$PROJ_MLRUNS" 2>/dev/null)" ]; then
+            echo "Restoring mlruns from $PROJ_MLRUNS ..."
+            cp -a "$PROJ_MLRUNS/." mlruns/
+            echo "Restored $(find mlruns -name '*.json' | wc -l) run metadata files."
+          else
+            echo "No prior mlruns found at $PROJ_MLRUNS — starting fresh."
+          fi
+
       - name: DVC pull cached stages
         run: dvc pull --run-cache || echo "No remote cache available, running from scratch"
 
@@ -170,6 +181,32 @@ jobs:
           MLFLOW_TRACKING_URI: http://localhost:5000
           PUSHGATEWAY_URL: http://localhost:9091
         run: dvc repro
+
+      - name: Verify Prometheus received training metrics
+        run: |
+          echo "Waiting for Prometheus to scrape Pushgateway..."
+          sleep 20
+          for metric in spendsense_training_val_f1 spendsense_test_f1_macro spendsense_test_accuracy spendsense_training_duration_seconds; do
+            RESULT=$(curl -s "http://localhost:9090/api/v1/query?query=${metric}" | python -c "
+          import json, sys
+          d = json.load(sys.stdin)
+          results = d.get('data', {}).get('result', [])
+          print(len(results))
+          ")
+            if [ "$RESULT" -gt 0 ]; then
+              echo "  PASS: ${metric} found in Prometheus (${RESULT} series)"
+            else
+              echo "  WARN: ${metric} not yet in Prometheus (may still be scraping)"
+            fi
+          done
+
+      - name: Save MLflow runs back to project directory
+        run: |
+          PROJ_MLRUNS="/home/rishabh/Documents/IITM/MLOps/Project/DA5402_Project/mlruns"
+          echo "Saving mlruns to $PROJ_MLRUNS ..."
+          mkdir -p "$PROJ_MLRUNS"
+          cp -a mlruns/. "$PROJ_MLRUNS/"
+          echo "Saved $(find "$PROJ_MLRUNS" -name '*.json' | wc -l) run metadata files."
 
       - name: Check evaluation metrics
         run: |
@@ -323,4 +360,4 @@ jobs:
 
       - name: Tear down all services
         if: always()
-        run: docker compose down -v
+        run: docker compose down

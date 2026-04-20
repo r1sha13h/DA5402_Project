@@ -45,3 +45,6 @@ logs/
 
 # GitHub Actions self-hosted runner
 actions-runner/
+
+# Environment secrets
+.env
