@@ -183,6 +183,36 @@
 
 ---
 
+### GET /drift
+
+**Description:** Compare recent feedback label distribution against the training baseline. Flags categories that have shifted more than 10 percentage points since training.
+
+**Response (200 OK):**
+```json
+{
+  "status": "ok",
+  "drift_flags": {},
+  "feedback_samples": 42,
+  "baseline_distribution": {"Food & Dining": 0.1062, "Transportation": 0.1079, "...": 0.0},
+  "feedback_distribution": {"Food & Dining": 0.214, "Transportation": 0.095, "...": 0.0}
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| status | string | `"ok"`, `"drift_detected"`, `"no_feedback"`, `"no_baseline"` |
+| drift_flags | object | Per-category `{baseline, current, shift}` for shifted categories |
+| feedback_samples | int | Number of feedback entries analysed |
+| baseline_distribution | object | Training-time category proportions |
+| feedback_distribution | object | Current feedback category proportions |
+
+**Error Responses:**
+- `503 Service Unavailable` — model not loaded (label encoder unavailable)
+
+**Data sources:** `feedback/feedback.jsonl` (actual_category counts) + `data/processed/feature_baseline.json` (training label_distribution, mapped via label_encoder).
+
+---
+
 ### GET /metrics
 
 **Description:** Prometheus metrics in text format. Scraped by Prometheus every 10s.
