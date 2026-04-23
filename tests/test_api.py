@@ -12,11 +12,20 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 # ── Mock predictor before importing app ───────────────────────────────────────
 
+_MOCK_RUNS = [
+    {"run_id": "abc123", "f1_macro": 0.987, "timestamp": "2026-04-23 11:33:00"},
+    {"run_id": "def456", "f1_macro": 0.951, "timestamp": "2026-04-17 09:10:00"},
+]
+
+
 @pytest.fixture(scope="module")
 def mock_predictor():
     """Patch the predictor singleton so tests do not require a trained model."""
     mock = MagicMock()
     mock.is_ready = True
+    mock.current_run_id = "abc123"
+    mock.list_mlflow_runs.return_value = _MOCK_RUNS
+    mock.load_from_mlflow.return_value = True
     mock.predict.return_value = (
         "Food & Dining",
         0.91,
@@ -137,3 +146,54 @@ def test_metrics_endpoint_returns_prometheus_format(client):
     resp = client.get("/metrics")
     assert resp.status_code == 200
     assert "spendsense" in resp.text
+
+
+# ── Tests: GET /models ────────────────────────────────────────────────────────
+
+def test_list_models_returns_runs(client):
+    """GET /models returns a list of MLflow runs and the current run ID."""
+    resp = client.get("/models")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "runs" in body
+    assert "current_run_id" in body
+    assert len(body["runs"]) == 2
+
+
+def test_list_models_run_structure(client):
+    """Each run in GET /models has run_id and f1_macro fields."""
+    resp = client.get("/models")
+    run = resp.json()["runs"][0]
+    assert "run_id" in run
+    assert "f1_macro" in run
+
+
+# ── Tests: POST /models/switch ────────────────────────────────────────────────
+
+def test_switch_model_success(client):
+    """POST /models/switch with a valid run_id returns ok status."""
+    resp = client.post("/models/switch", json={"run_id": "abc123"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "ok"
+    assert body["run_id"] == "abc123"
+
+
+def test_switch_model_missing_run_id_returns_422(client):
+    """POST /models/switch with empty body returns 422 validation error."""
+    resp = client.post("/models/switch", json={})
+    assert resp.status_code == 422
+
+
+def test_switch_model_empty_run_id_returns_422(client):
+    """POST /models/switch with empty string run_id returns 422."""
+    resp = client.post("/models/switch", json={"run_id": ""})
+    assert resp.status_code == 422
+
+
+def test_switch_model_failure_returns_500(client, mock_predictor):
+    """POST /models/switch returns 500 when load_from_mlflow fails."""
+    mock_predictor.load_from_mlflow.return_value = False
+    resp = client.post("/models/switch", json={"run_id": "bad_run_id"})
+    assert resp.status_code == 500
+    mock_predictor.load_from_mlflow.return_value = True

@@ -130,6 +130,11 @@ def evaluate(processed_dir: str, params: dict) -> dict:
         for cls in label_encoder.classes_:
             mlflow.log_metric(f"f1_{cls.replace(' & ', '_').replace(' ', '_').lower()}",
                               report[cls]["f1-score"])
+        mlflow.log_dict(metrics["per_class_f1"], "per_class_f1.json")
+        mlflow.log_dict(
+            {"classes": label_encoder.classes_.tolist(), "matrix": cm},
+            "confusion_matrix.json",
+        )
 
     # Push evaluation metrics to Prometheus Pushgateway
     pushgateway_url = os.environ.get("PUSHGATEWAY_URL", "http://localhost:9091")

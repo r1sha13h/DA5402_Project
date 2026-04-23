@@ -25,7 +25,7 @@ FastAPI Backend (port 8000)
  ▼
 BiLSTM Model + Vocab + LabelEncoder
  │
- ├── Prometheus /metrics → Prometheus (9090) → Grafana (3000)
+ ├── Prometheus /metrics → Prometheus (9090) → Grafana (3001)
  ├── MLflow tracking → MLflow server (5000)
  └── Data pipeline ← Airflow (8080) + DVC + GitHub Actions
 ```
@@ -34,7 +34,7 @@ BiLSTM Model + Vocab + LabelEncoder
 
 1. **Ingestion:** Raw CSV → Airflow DAG validates schema/nulls/drift → `data/ingested/`
 2. **Preprocessing:** `data/ingested/` → tokenise, build vocab, split → `data/processed/`
-3. **Training:** `data/processed/` → BiLSTM trains, logs to MLflow → `models/best_model.pt`
+3. **Training:** `data/processed/` → BiLSTM trains, logs to MLflow → `models/latest_model.pt`
 4. **Evaluation:** Test split + model → accuracy/F1 computed → `metrics/eval_metrics.json`
 5. **Serving:** FastAPI loads model/vocab/label_encoder → serves predictions via REST API
 6. **Monitoring:** FastAPI emits Prometheus metrics → Grafana visualises in NRT

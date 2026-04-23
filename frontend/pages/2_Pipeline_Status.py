@@ -1,6 +1,7 @@
 """SpendSense Streamlit Frontend — Pipeline Status & Monitoring Page."""
 
 import os
+import subprocess
 
 import requests
 import streamlit as st
@@ -8,7 +9,7 @@ import streamlit as st
 BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8000")
 MLFLOW_URL = os.environ.get("MLFLOW_URL", "http://localhost:5000")
 AIRFLOW_URL = os.environ.get("AIRFLOW_URL", "http://localhost:8080")
-GRAFANA_URL = os.environ.get("GRAFANA_URL", "http://localhost:3000")
+GRAFANA_URL = os.environ.get("GRAFANA_URL", "http://localhost:3001")
 
 st.set_page_config(page_title="Pipeline Status — SpendSense", page_icon="⚙️", layout="wide")
 
@@ -24,7 +25,7 @@ services = [
     ("FastAPI Backend", f"{BACKEND_URL}/health", "8000"),
     ("MLflow Tracking", f"{MLFLOW_URL}/health", "5000"),
     ("Airflow Webserver", f"{AIRFLOW_URL}/health", "8080"),
-    ("Grafana Dashboard", f"{GRAFANA_URL}/api/health", "3000"),
+    ("Grafana Dashboard", f"{GRAFANA_URL}/api/health", "3001"),
 ]
 
 for col, (name, url, port) in zip(cols, services):
@@ -114,7 +115,7 @@ st.markdown("The DVC DAG defines the reproducible ML pipeline:")
 stages = [
     ("ingest", "Schema + null + category validation", "src/data/ingest.py", "data/ingested/"),
     ("preprocess", "Tokenise, build vocab, split", "src/data/preprocess.py", "data/processed/"),
-    ("train", "Train BiLSTM + MLflow logging", "src/models/train.py", "models/best_model.pt"),
+    ("train", "Train BiLSTM + MLflow logging", "src/models/train.py", "models/latest_model.pt"),
     ("evaluate", "Test-set evaluation + metrics", "src/models/evaluate.py",
      "metrics/eval_metrics.json"),
 ]
@@ -127,3 +128,45 @@ for i, (name, desc, script, output) in enumerate(stages):
 
 st.info("Run **`dvc repro`** to execute the full pipeline. "
         "GitHub Actions triggers this automatically on push to `main`.")
+
+st.divider()
+
+# ── DVC DAG Visualization ─────────────────────────────────────────────────────────────────────────────
+_DAG_FALLBACK = """
+         +--------+
+         | ingest |
+         +--------+
+              *
+              *
+              *
+        +-----------+
+        | preprocess|
+        +-----------+
+              *
+              *
+              *
+         +-------+
+         | train |
+         +-------+
+              *
+              *
+              *
+        +----------+
+        | evaluate |
+        +----------+
+"""
+
+st.subheader("🔀 DVC Pipeline DAG")
+if st.button("🔄 Render DAG"):
+    try:
+        result = subprocess.run(
+            ["dvc", "dag"],
+            capture_output=True, text=True, timeout=10,
+            cwd=os.environ.get("DVC_ROOT", "/app"),
+        )
+        dag_text = result.stdout.strip() if result.returncode == 0 else ""
+    except Exception:
+        dag_text = ""
+    st.code(dag_text if dag_text else _DAG_FALLBACK, language="text")
+else:
+    st.code(_DAG_FALLBACK, language="text")

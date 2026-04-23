@@ -25,11 +25,3 @@ entry_points:
   ingest:
     command: python src/data/ingest.py
 
-  generate:
-    parameters:
-      n_samples: {type: int, default: 6000}
-      seed: {type: int, default: 42}
-    command: >
-      python src/data/generate_synthetic.py
-      --n-samples {n_samples}
-      --seed {seed}

@@ -34,6 +34,7 @@ from backend.app.schemas import (
     PredictRequest,
     PredictResponse,
     ReadyResponse,
+    SwitchModelRequest,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -182,15 +183,13 @@ def list_models():
 
 
 @app.post("/models/switch", tags=["Model Management"])
-def switch_model(request: dict):
+def switch_model(request: SwitchModelRequest):
     """Switch the active model to one from a specific MLflow run.
 
     Args:
-        request: JSON body with 'run_id' key.
+        request: JSON body with 'run_id' field (validated by Pydantic).
     """
-    run_id = request.get("run_id")
-    if not run_id:
-        raise HTTPException(status_code=422, detail="run_id is required.")
+    run_id = request.run_id
     success = predictor.load_from_mlflow(run_id)
     if success:
         MODEL_LOADED.set(1)

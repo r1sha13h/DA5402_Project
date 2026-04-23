@@ -60,3 +60,14 @@ class ReadyResponse(BaseModel):
     ready: bool
     model_loaded: bool
     message: Optional[str] = None
+
+
+class SwitchModelRequest(BaseModel):
+    """Request body for /models/switch endpoint."""
+
+    run_id: str = Field(
+        ...,
+        min_length=1,
+        description="MLflow run ID to load the model from.",
+        example="c58d6422395d4bebb2c17ce87c5ec37d",
+    )
