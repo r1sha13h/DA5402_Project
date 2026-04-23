@@ -69,6 +69,25 @@
 | TC33 | /models/switch empty run_id → 422 | POST /models/switch {"run_id": ""} | 422 | Pass |
 | TC34 | /models/switch load failure → 500 | POST /models/switch, load fails | 500 | Pass |
 
+### Module: backend/app/main.py — /feedback endpoint
+
+| TC# | Test Case | Input | Expected Output | Status |
+|---|---|---|---|---|
+| TC59 | /feedback correct prediction records entry | correct prediction + tmp_path | 200, status="ok" | Pass |
+| TC60 | /feedback incorrect prediction still records | wrong prediction + tmp_path | 200, status="ok" | Pass |
+| TC61 | /feedback missing required fields → 422 | {"description": "test"} only | 422 | Pass |
+| TC62 | /feedback with optional transaction_id | full payload + transaction_id | 200 | Pass |
+
+### Module: backend/app/predictor.py — SpendSensePredictor
+
+| TC# | Test Case | Input | Expected Output | Status |
+|---|---|---|---|---|
+| TC63 | list_mlflow_runs: returns list from mocked MLflow | mock experiment + runs | list with 1 entry, run_id="abc123" | Pass |
+| TC64 | list_mlflow_runs: no experiment returns [] | mock returns None | [] | Pass |
+| TC65 | list_mlflow_runs: exception returns [] | mock raises Exception | [] | Pass |
+| TC66 | load_from_mlflow: artifact error returns False | mock raises Exception | False, model is None | Pass |
+| TC67 | load_from_mlflow: leaves model None on failure | bad run ID | not instance.is_ready | Pass |
+
 ### Module: src/data/ingest.py (additional)
 
 | TC# | Test Case | Input | Expected Output | Status |
@@ -131,8 +150,8 @@
 
 | Category | Total | Passed | Failed |
 |---|---|---|---|
-| Unit tests (pytest) | 58 | 58 | 0 |
+| Unit tests (pytest) | 67 | 67 | 0 |
 | Integration tests | 7 | 7 | 0 |
-| **Total** | **65** | **65** | **0** |
+| **Total** | **74** | **74** | **0** |
 
 *Run `pytest tests/ -v --cov=src --cov=backend` to reproduce unit test results.*

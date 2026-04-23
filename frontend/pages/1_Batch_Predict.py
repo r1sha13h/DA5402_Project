@@ -2,10 +2,14 @@
 
 import io
 import os
+import sys
 
 import pandas as pd
 import requests
 import streamlit as st
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from monitoring import push_ui_event  # noqa: E402
 
 BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8000")
 
@@ -18,6 +22,11 @@ st.markdown(
 )
 
 st.divider()
+
+if "ui_batch_items" not in st.session_state:
+    st.session_state.ui_batch_items = 0
+if "ui_errors" not in st.session_state:
+    st.session_state.ui_errors = 0
 
 upload_tab, paste_tab = st.tabs(["📁 Upload CSV", "📝 Paste Descriptions"])
 
@@ -82,11 +91,23 @@ with upload_tab:
                         mime="text/csv",
                         use_container_width=True,
                     )
+                    st.session_state.ui_batch_items += len(result_df)
+                    push_ui_event(0, st.session_state.ui_errors,
+                                  st.session_state.ui_batch_items)
                 except requests.exceptions.ConnectionError:
+                    st.session_state.ui_errors += 1
+                    push_ui_event(0, st.session_state.ui_errors,
+                                  st.session_state.ui_batch_items)
                     st.error("Cannot connect to the backend.")
                 except requests.exceptions.HTTPError as e:
+                    st.session_state.ui_errors += 1
+                    push_ui_event(0, st.session_state.ui_errors,
+                                  st.session_state.ui_batch_items)
                     st.error(f"API error: {e.response.json().get('detail', str(e))}")
                 except Exception as e:
+                    st.session_state.ui_errors += 1
+                    push_ui_event(0, st.session_state.ui_errors,
+                                  st.session_state.ui_batch_items)
                     st.error(f"Unexpected error: {e}")
 
 # ── Tab 2: Paste descriptions ─────────────────────────────────────────────────
@@ -123,7 +144,16 @@ with paste_tab:
                         ]),
                         use_container_width=True,
                     )
+                    st.session_state.ui_batch_items += len(data)
+                    push_ui_event(0, st.session_state.ui_errors,
+                                  st.session_state.ui_batch_items)
                 except requests.exceptions.ConnectionError:
+                    st.session_state.ui_errors += 1
+                    push_ui_event(0, st.session_state.ui_errors,
+                                  st.session_state.ui_batch_items)
                     st.error("Cannot connect to the backend.")
                 except Exception as e:
+                    st.session_state.ui_errors += 1
+                    push_ui_event(0, st.session_state.ui_errors,
+                                  st.session_state.ui_batch_items)
                     st.error(f"Error: {e}")

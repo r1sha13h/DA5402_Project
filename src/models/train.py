@@ -221,6 +221,21 @@ def main() -> None:
         run_id = run.info.run_id
         logger.info("MLflow run_id: %s", run_id)
 
+        # Automatically transition the newly registered model version to Staging
+        try:
+            client = mlflow.MlflowClient()
+            versions = client.search_model_versions("name='SpendSense'")
+            if versions:
+                latest = sorted(versions, key=lambda v: int(v.version))[-1]
+                client.transition_model_version_stage(
+                    name="SpendSense",
+                    version=latest.version,
+                    stage="Staging",
+                )
+                logger.info("Model version %s transitioned to Staging.", latest.version)
+        except Exception as exc:
+            logger.warning("Could not auto-transition model to Staging: %s", exc)
+
     # Write DVC metrics file
     os.makedirs("metrics", exist_ok=True)
     metrics_path = os.path.join("metrics", "train_metrics.json")

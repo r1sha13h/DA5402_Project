@@ -78,6 +78,11 @@ class SpendSensePredictor:
                 torch.load(_MODEL_PATH, map_location=self.device, weights_only=True)
             )
             self.model.eval()
+            if self.device.type == "cpu":
+                self.model = torch.quantization.quantize_dynamic(
+                    self.model, {torch.nn.LSTM, torch.nn.Linear}, dtype=torch.qint8
+                )
+                logger.info("Dynamic INT8 quantization applied (CPU mode).")
             logger.info("Model loaded on %s from %s", self.device, _MODEL_PATH)
             return True
         except Exception as exc:
@@ -145,6 +150,11 @@ class SpendSensePredictor:
                     torch.load(model_pth, map_location=self.device, weights_only=True)
                 )
                 self.model.eval()
+                if self.device.type == "cpu":
+                    self.model = torch.quantization.quantize_dynamic(
+                        self.model, {torch.nn.LSTM, torch.nn.Linear}, dtype=torch.qint8
+                    )
+                    logger.info("Dynamic INT8 quantization applied (CPU mode).")
 
             self.current_run_id = run_id
             logger.info("Model loaded from MLflow run_id=%s on %s", run_id, self.device)

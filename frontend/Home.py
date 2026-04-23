@@ -5,6 +5,8 @@ import os
 import requests
 import streamlit as st
 
+from monitoring import push_ui_event
+
 BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8000")
 
 CATEGORY_ICONS = {
@@ -122,6 +124,11 @@ with st.form("predict_form"):
     )
     submitted = st.form_submit_button("🔍 Classify", use_container_width=True)
 
+if "ui_predictions" not in st.session_state:
+    st.session_state.ui_predictions = 0
+if "ui_errors" not in st.session_state:
+    st.session_state.ui_errors = 0
+
 if submitted:
     if not description.strip():
         st.warning("Please enter a transaction description.")
@@ -143,6 +150,11 @@ if submitted:
 
                 st.success(f"### {icon} {cat}")
                 st.metric("Confidence", f"{conf * 100:.1f}%")
+                st.caption(
+                    "Confidence is the model's softmax probability for this category — "
+                    "how certain it is. Above 80% = high confidence; below 50% = the model "
+                    "sees multiple plausible categories."
+                )
                 st.divider()
                 st.markdown("**Score Distribution**")
 
@@ -154,11 +166,24 @@ if submitted:
                         text=f"{ico} {cls}: {score * 100:.1f}%",
                     )
 
+                st.session_state.ui_predictions += 1
+                push_ui_event(st.session_state.ui_predictions,
+                              st.session_state.ui_errors, 0)
+
             except requests.exceptions.ConnectionError:
+                st.session_state.ui_errors += 1
+                push_ui_event(st.session_state.ui_predictions,
+                              st.session_state.ui_errors, 0)
                 st.error("Cannot connect to the backend. Make sure the API server is running.")
             except requests.exceptions.HTTPError as e:
+                st.session_state.ui_errors += 1
+                push_ui_event(st.session_state.ui_predictions,
+                              st.session_state.ui_errors, 0)
                 st.error(f"API error: {e.response.json().get('detail', str(e))}")
             except Exception as e:
+                st.session_state.ui_errors += 1
+                push_ui_event(st.session_state.ui_predictions,
+                              st.session_state.ui_errors, 0)
                 st.error(f"Unexpected error: {e}")
 
 # ── Examples ──────────────────────────────────────────────────────────────────

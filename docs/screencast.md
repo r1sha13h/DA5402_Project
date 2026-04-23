@@ -170,6 +170,12 @@ Salary credit
 3. Query `spendsense_request_latency_seconds_bucket` → show latency distribution
 4. Query `spendsense_test_f1_macro` → show model quality metric pushed from training
 
+> **Note:** Pushgateway metrics (`spendsense_test_f1_macro`, `spendsense_training_val_f1`,
+> `spendsense_pipeline_*`, `spendsense_ui_*`) only populate after a full pipeline run with
+> Docker services up. If these metrics show "No data" in Grafana during the demo, trigger
+> a few predictions from the Streamlit UI (populates `spendsense_ui_*`) and note that
+> training/evaluation metrics populate automatically on each `dvc repro` CI run.
+
 **Grafana (localhost:3001)**
 
 **Credentials:** admin / admin

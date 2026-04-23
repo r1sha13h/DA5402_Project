@@ -150,6 +150,39 @@
 
 ---
 
+### POST /feedback
+
+**Description:** Collect ground truth labels for production performance tracking. Appends one JSON line to `feedback/feedback.jsonl`.
+
+**Request Body:**
+```json
+{
+  "description": "Zomato food delivery payment",
+  "predicted_category": "Food & Dining",
+  "actual_category": "Food & Dining",
+  "transaction_id": "txn_001"
+}
+```
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| description | string | min_length=1, max_length=500 | Original transaction description |
+| predicted_category | string | min_length=1 | Category the model predicted |
+| actual_category | string | min_length=1 | Correct ground truth category |
+| transaction_id | string | optional | Caller-supplied transaction identifier |
+
+**Response (200 OK):**
+```json
+{ "status": "ok", "message": "Feedback recorded." }
+```
+
+**Error Responses:**
+- `422 Unprocessable Entity` — missing required fields
+
+**Storage:** Each entry is a JSON object with keys `timestamp`, `description`, `predicted_category`, `actual_category`, `transaction_id`, `correct` (bool).
+
+---
+
 ### GET /metrics
 
 **Description:** Prometheus metrics in text format. Scraped by Prometheus every 10s.
