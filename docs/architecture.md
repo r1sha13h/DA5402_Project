@@ -79,9 +79,9 @@ SpendSense is a neural-network-based personal expense classifier that automatica
 Eight services: mlflow, backend, frontend, airflow, prometheus, grafana, alertmanager, pushgateway
 
 ### Layer 4A — FastAPI Backend (Model Serving)
-- Loads model from disk artefacts on startup
-- REST API: `POST /predict`, `POST /predict/batch`, `GET /health`, `GET /ready`, `GET /metrics`
-- Prometheus instrumentation built in
+- Loads model from disk artefacts on startup; applies dynamic INT8 quantization on CPU
+- REST API: `POST /predict`, `POST /predict/batch`, `GET /health`, `GET /ready`, `GET /metrics`, `POST /feedback`, `GET /drift`, `GET /models`, `POST /models/switch`
+- Prometheus instrumentation built in; `/feedback` appends to `feedback/feedback.jsonl`; `/drift` compares feedback distribution to training baseline
 - Loose coupling: frontend communicates only via REST API
 
 ### Layer 4B — Streamlit Frontend
@@ -93,7 +93,7 @@ Eight services: mlflow, backend, frontend, airflow, prometheus, grafana, alertma
 - FastAPI exposes `/metrics` in Prometheus text format; Prometheus scrapes every 10 seconds
 - Grafana dashboard: request rate, P95 latency, error rate gauge, category distribution (port 3001)
 - Alertmanager fires email alerts when error rate > 5%
-- Pushgateway receives metrics pushed by batch jobs (train.py, evaluate.py) after they exit
+- Pushgateway receives metrics from all components: training (`spendsense_training_*`), evaluation (`spendsense_test_*`), Airflow pipeline (`spendsense_pipeline_*`), Streamlit UI (`spendsense_ui_*`); persisted to volume across restarts
 
 ## Design Principles
 

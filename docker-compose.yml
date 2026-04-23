@@ -3,6 +3,7 @@ volumes:
   airflow_db:
   prometheus_data:
   grafana_data:
+  pushgateway_data:      # persists Pushgateway metrics across restarts
 
 # ── Shared network ─────────────────────────────────────────────────────────────
 networks:
@@ -47,11 +48,14 @@ services:
     volumes:
       - ./data:/app/data:ro
       - ./models:/app/models:ro
+      - ./feedback:/app/feedback   # persists POST /feedback data across restarts
     environment:
       - MLFLOW_TRACKING_URI=http://mlflow:5000
       - MODEL_PATH=/app/models/latest_model.pt
       - VOCAB_PATH=/app/data/processed/vocab.pkl
       - LABEL_ENCODER_PATH=/app/data/processed/label_encoder.pkl
+      - FEATURE_BASELINE_PATH=/app/data/processed/feature_baseline.json
+      - PUSHGATEWAY_URL=http://pushgateway:9091
     depends_on:
       mlflow:
         condition: service_healthy
@@ -76,6 +80,7 @@ services:
       - MLFLOW_URL=http://mlflow:5000
       - AIRFLOW_URL=http://airflow:8080
       - GRAFANA_URL=http://grafana:3000
+      - PUSHGATEWAY_URL=http://pushgateway:9091
     depends_on:
       backend:
         condition: service_healthy
@@ -100,6 +105,7 @@ services:
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////opt/airflow/airflow.db
       - PROJECT_ROOT=/opt/airflow/project
+      - PUSHGATEWAY_URL=http://pushgateway:9091
       - GITHUB_PAT=${GITHUB_PAT:-}
       - GITHUB_REPO=r1sha13h/DA5402_Project
     command: bash -c "airflow db migrate && airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@spendsense.local || true && airflow standalone"
@@ -132,6 +138,11 @@ services:
     networks: [spendsense]
     ports:
       - "9091:9091"
+    volumes:
+      - pushgateway_data:/pushgateway_data
+    command:
+      - "--persistence.file=/pushgateway_data/pushgateway.db"
+      - "--persistence.interval=5m"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:9091/-/healthy || exit 1"]
       interval: 15s
@@ -154,7 +165,7 @@ services:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.retention.time=7d"
 
-  # ── 6. Grafana ───────────────────────────────────────────────────────────────
+  # ── 8. Grafana ───────────────────────────────────────────────────────────────
   grafana:
     image: grafana/grafana:10.4.3
     container_name: spendsense_grafana

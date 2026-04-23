@@ -34,10 +34,11 @@ BiLSTM Model + Vocab + LabelEncoder
 
 1. **Ingestion:** Raw CSV → Airflow DAG validates schema/nulls/drift → `data/ingested/`
 2. **Preprocessing:** `data/ingested/` → tokenise, build vocab, split → `data/processed/`
-3. **Training:** `data/processed/` → BiLSTM trains, logs to MLflow → `models/latest_model.pt`
+3. **Training:** `data/processed/` → BiLSTM trains, auto-promotes to MLflow Staging → `models/latest_model.pt`
 4. **Evaluation:** Test split + model → accuracy/F1 computed → `metrics/eval_metrics.json`
-5. **Serving:** FastAPI loads model/vocab/label_encoder → serves predictions via REST API
-6. **Monitoring:** FastAPI emits Prometheus metrics → Grafana visualises in NRT
+5. **Serving:** FastAPI loads model/vocab/label_encoder, applies dynamic INT8 quantization → serves predictions via REST API
+6. **Feedback loop:** `POST /feedback` appends ground truth labels to `feedback/feedback.jsonl`; `GET /drift` compares feedback distribution to training baseline and flags > 10pp shifts
+7. **Monitoring:** FastAPI, Streamlit, and Airflow emit Prometheus metrics → Grafana visualises in NRT
 
 ## 5. ML Model
 
@@ -46,6 +47,7 @@ BiLSTM Model + Vocab + LabelEncoder
 - **Output:** Softmax over 10 expense categories
 - **Training data:** ~1.4M real labelled transactions from HuggingFace (10 categories)
 - **Performance target:** macro F1 ≥ 0.70 (enforced in CI pipeline)
+- **Inference optimisation:** Dynamic INT8 quantization applied to LSTM and Linear layers at load time on CPU (~4× memory reduction, negligible accuracy loss)
 
 ## 6. Expense Categories (10 classes)
 
