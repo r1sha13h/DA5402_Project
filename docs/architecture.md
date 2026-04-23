@@ -40,11 +40,12 @@ SpendSense is a neural-network-based personal expense classifier that automatica
                 │  │ /metrics        │  └────────────────────────────┘ │
                 │  └────────┬────────┘                                  │
                 │           │                                           │
-                │  ┌────────▼────────────────────┐                     │
-                │  │ Prometheus + Grafana         │                     │
-                │  │ NRT dashboards, alerting     │                     │
-                │  │ >5% error rate alert         │                     │
-                │  └─────────────────────────────┘                     │
+                │  ┌────────▼────────────────────────────────────────┐  │
+                │  │ Prometheus + Grafana + Alertmanager + Pushgateway│  │
+                │  │ NRT dashboards, alerting                         │  │
+                │  │ >5% error rate alert (Alertmanager → email)      │  │
+                │  │ Pushgateway receives batch-job metrics            │  │
+                │  └──────────────────────────────────────────────────┘  │
                 └───────────────────────────────────────────────────────┘
 ```
 
@@ -75,7 +76,7 @@ SpendSense is a neural-network-based personal expense classifier that automatica
 - Tracking server runs in Docker on port 5000
 
 ### Layer 4 — docker-compose (Runtime Orchestration)
-Six services: mlflow, backend, frontend, airflow, prometheus, grafana
+Eight services: mlflow, backend, frontend, airflow, prometheus, grafana, alertmanager, pushgateway
 
 ### Layer 4A — FastAPI Backend (Model Serving)
 - Loads model from disk artefacts on startup
@@ -88,11 +89,11 @@ Six services: mlflow, backend, frontend, airflow, prometheus, grafana
 - Calls FastAPI via configurable `BACKEND_URL` env var
 - Shows confidence score distribution per prediction
 
-### Layer 4C — Prometheus + Grafana (Monitoring)
-- FastAPI exposes `/metrics` in Prometheus text format
-- Prometheus scrapes every 10 seconds
-- Grafana dashboard: request rate, P95 latency, error rate gauge, category distribution
-- Alert threshold: error rate > 5%
+### Layer 4C — Prometheus + Grafana + Alertmanager + Pushgateway (Monitoring)
+- FastAPI exposes `/metrics` in Prometheus text format; Prometheus scrapes every 10 seconds
+- Grafana dashboard: request rate, P95 latency, error rate gauge, category distribution (port 3001)
+- Alertmanager fires email alerts when error rate > 5%
+- Pushgateway receives metrics pushed by batch jobs (train.py, evaluate.py) after they exit
 
 ## Design Principles
 

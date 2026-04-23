@@ -28,7 +28,7 @@ class PredictResponse(BaseModel):
 class BatchPredictRequest(BaseModel):
     """Request body for batch transaction prediction."""
 
-    descriptions: List[str] = Field(..., min_items=1, max_items=500)
+    descriptions: List[str] = Field(..., min_length=1, max_length=500)
 
 
 class BatchPredictItem(BaseModel):

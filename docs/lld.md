@@ -99,6 +99,57 @@
 
 ---
 
+### GET /models
+
+**Description:** List available MLflow experiment runs for model selection.
+
+**Response (200 OK):**
+```json
+{
+  "current_run_id": "c58d6422395d4bebb2c17ce87c5ec37d",
+  "runs": [
+    {
+      "run_id": "c58d6422395d4bebb2c17ce87c5ec37d",
+      "experiment_id": "1",
+      "status": "FINISHED",
+      "start_time": 1714000000000,
+      "metrics": { "test_f1_macro": 0.9872, "test_accuracy": 0.9875 }
+    }
+  ]
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| current_run_id | string \| null | Run ID of the currently active model |
+| runs | list | All FINISHED MLflow runs with their metrics |
+
+---
+
+### POST /models/switch
+
+**Description:** Hot-swap the active model to one from a specific MLflow run (no restart required).
+
+**Request Body:**
+```json
+{ "run_id": "c58d6422395d4bebb2c17ce87c5ec37d" }
+```
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| run_id | string | min_length=1 | MLflow run ID to load model artefacts from |
+
+**Response (200 OK):**
+```json
+{ "status": "ok", "run_id": "c58d6422395d4bebb2c17ce87c5ec37d", "message": "Model switched successfully." }
+```
+
+**Error Responses:**
+- `422 Unprocessable Entity` — missing or empty run_id
+- `500 Internal Server Error` — artefacts not found or load failed
+
+---
+
 ### GET /metrics
 
 **Description:** Prometheus metrics in text format. Scraped by Prometheus every 10s.
@@ -148,7 +199,9 @@ Key metrics exposed:
 
 ### backend/app/predictor.py
 - `SpendSensePredictor`
-  - `load() → bool`
+  - `load() → bool` — loads artefacts from disk on startup
+  - `load_from_mlflow(run_id) → bool` — downloads and activates artefacts from an MLflow run
+  - `list_mlflow_runs() → list[dict]` — returns all FINISHED runs with metrics
   - `predict(description) → (category, confidence, all_scores)`
   - `predict_batch(descriptions) → list`
 

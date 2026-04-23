@@ -62,6 +62,56 @@
 | TC26 | /predict/batch returns correct count | 2 descriptions | total == 2 | Pass |
 | TC27 | /predict/batch empty list → 422 | {"descriptions": []} | 422 | Pass |
 | TC28 | /metrics returns Prometheus format | GET /metrics | "spendsense_" in body | Pass |
+| TC29 | /models returns current_run_id and runs list | GET /models | 200, both keys present | Pass |
+| TC30 | /models runs field is a list | GET /models | runs is list type | Pass |
+| TC31 | /models/switch success path | POST /models/switch valid run_id | 200, status="ok" | Pass |
+| TC32 | /models/switch missing run_id → 422 | POST /models/switch {} | 422 | Pass |
+| TC33 | /models/switch empty run_id → 422 | POST /models/switch {"run_id": ""} | 422 | Pass |
+| TC34 | /models/switch load failure → 500 | POST /models/switch, load fails | 500 | Pass |
+
+### Module: src/data/ingest.py (additional)
+
+| TC# | Test Case | Input | Expected Output | Status |
+|---|---|---|---|---|
+| TC35 | Schema fails on wrong description column type | DataFrame with int description | ValueError | Pass |
+| TC36 | Null check: no change on clean DataFrame | DataFrame with no nulls | Same row count | Pass |
+| TC37 | Categories: passes when all categories known | DataFrame with known categories | Full DataFrame returned | Pass |
+
+### Module: src/data/preprocess.py (additional)
+
+| TC# | Test Case | Input | Expected Output | Status |
+|---|---|---|---|---|
+| TC38 | Tokenizer on punctuation-only string | "!@#$%" | [] (empty list) | Pass |
+| TC39 | Vocab respects max_vocab_size cap | 1000 texts, max_size=10 | len(vocab) ≤ 12 (incl. PAD, UNK) | Pass |
+| TC40 | Encoder maps unknown words to UNK | Word absent from vocab | Encoded as index 1 | Pass |
+
+### Module: src/models/model.py (additional)
+
+| TC# | Test Case | Input | Expected Output | Status |
+|---|---|---|---|---|
+| TC41 | Output shape with variable seq_len | (4, 15) input | (4, 10) logits | Pass |
+| TC42 | Single-layer model initialises without dropout | num_layers=1 | Forward pass succeeds | Pass |
+
+### Module: airflow/dags/ingestion_dag.py
+
+| TC# | Test Case | Input | Expected Output | Status |
+|---|---|---|---|---|
+| TC43 | verify_raw_data: passes when file exists | File present with rows | No exception raised | Pass |
+| TC44 | verify_raw_data: raises when file missing | File absent | FileNotFoundError | Pass |
+| TC45 | validate_schema: passes on valid CSV | Valid schema CSV | No exception | Pass |
+| TC46 | validate_schema: raises on missing column | CSV missing 'category' col | ValueError | Pass |
+| TC47 | check_nulls: no change on clean data | CSV with no nulls | Full row count preserved | Pass |
+| TC48 | check_nulls: null rows reported correctly | CSV with null rows | Null rows flagged | Pass |
+| TC49 | check_drift: skips when no baseline exists | No baseline file | Returns "skipped" | Pass |
+| TC50 | check_drift: no drift on similar data | Low mean-shift CSV | Returns "no_drift" | Pass |
+| TC51 | check_drift: drift detected on shifted data | High mean-shift CSV | Returns "drift" | Pass |
+| TC52 | run_ingest: success calls ingest subprocess | subprocess succeeds | Completes without raise | Pass |
+| TC53 | run_ingest: failure raises AirflowException | subprocess non-zero exit | AirflowException raised | Pass |
+| TC54 | trigger_dvc: skips when drift=False | XCom drift=False | "not_triggered" returned | Pass |
+| TC55 | trigger_dvc: skips when PAT not set | PAT env var unset | "not_triggered" returned | Pass |
+| TC56 | trigger_dvc: triggers GitHub Actions on drift | PAT set, drift=True | POST dispatched, 204 received | Pass |
+| TC57 | trigger_dvc: non-204 response handled gracefully | API returns 400 | "not_triggered" returned | Pass |
+| TC58 | trigger_dvc: network error raises RuntimeError | requests raises exception | RuntimeError raised | Pass |
 
 ### Integration / System Tests
 
@@ -69,7 +119,7 @@
 |---|---|---|---|
 | TC29 | Full DVC pipeline runs end-to-end | `dvc repro` | All 5 stages complete successfully |
 | TC30 | Evaluation F1 meets threshold | CI metric check | test_f1_macro ≥ 0.70 |
-| TC31 | Docker services start cleanly | `docker compose up` | All 6 services healthy |
+| TC31 | Docker services start cleanly | `docker compose up` | All 8 services healthy |
 | TC32 | Frontend connects to backend | Streamlit UI | Prediction displayed for sample input |
 | TC33 | Prometheus scrapes FastAPI metrics | Prometheus target | Up status |
 | TC34 | Grafana dashboard loads | Browser → Grafana | SpendSense dashboard visible |
@@ -81,8 +131,8 @@
 
 | Category | Total | Passed | Failed |
 |---|---|---|---|
-| Unit tests (pytest) | 28 | 28 | 0 |
+| Unit tests (pytest) | 58 | 58 | 0 |
 | Integration tests | 7 | 7 | 0 |
-| **Total** | **35** | **35** | **0** |
+| **Total** | **65** | **65** | **0** |
 
 *Run `pytest tests/ -v --cov=src --cov=backend` to reproduce unit test results.*
