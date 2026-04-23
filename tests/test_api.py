@@ -1,9 +1,10 @@
-"""Unit tests for the FastAPI backend endpoints."""
+"""Unit tests for the FastAPI backend endpoints and SpendSensePredictor."""
 
 import os
 import sys
 from unittest.mock import MagicMock, patch
 
+import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
@@ -197,3 +198,124 @@ def test_switch_model_failure_returns_500(client, mock_predictor):
     resp = client.post("/models/switch", json={"run_id": "bad_run_id"})
     assert resp.status_code == 500
     mock_predictor.load_from_mlflow.return_value = True
+
+
+# ── Tests: POST /feedback ─────────────────────────────────────────────────────
+
+def test_feedback_correct_prediction(client, tmp_path, monkeypatch):
+    """POST /feedback records an entry and returns ok when prediction is correct."""
+    monkeypatch.setattr("backend.app.main._FEEDBACK_LOG", tmp_path / "feedback.jsonl")
+    resp = client.post("/feedback", json={
+        "description": "Zomato food delivery",
+        "predicted_category": "Food & Dining",
+        "actual_category": "Food & Dining",
+    })
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "ok"
+
+
+def test_feedback_incorrect_prediction_still_records(client, tmp_path, monkeypatch):
+    """POST /feedback records an entry even when prediction was wrong."""
+    monkeypatch.setattr("backend.app.main._FEEDBACK_LOG", tmp_path / "feedback.jsonl")
+    resp = client.post("/feedback", json={
+        "description": "Uber ride",
+        "predicted_category": "Food & Dining",
+        "actual_category": "Transportation",
+    })
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "ok"
+
+
+def test_feedback_missing_fields_returns_422(client):
+    """POST /feedback with missing required fields returns 422."""
+    resp = client.post("/feedback", json={"description": "test"})
+    assert resp.status_code == 422
+
+
+def test_feedback_with_optional_transaction_id(client, tmp_path, monkeypatch):
+    """POST /feedback accepts optional transaction_id."""
+    monkeypatch.setattr("backend.app.main._FEEDBACK_LOG", tmp_path / "feedback.jsonl")
+    resp = client.post("/feedback", json={
+        "description": "Netflix subscription",
+        "predicted_category": "Entertainment & Recreation",
+        "actual_category": "Entertainment & Recreation",
+        "transaction_id": "txn_42",
+    })
+    assert resp.status_code == 200
+
+
+# ── Tests: SpendSensePredictor.list_mlflow_runs ───────────────────────────────
+
+def test_predictor_list_mlflow_runs_returns_list():
+    """list_mlflow_runs returns a list of run dicts from a mocked MLflow client."""
+    from backend.app.predictor import SpendSensePredictor
+
+    instance = SpendSensePredictor()
+    mock_exp = MagicMock()
+    mock_exp.experiment_id = "1"
+    mock_runs = pd.DataFrame([{
+        "run_id": "abc123",
+        "status": "FINISHED",
+        "start_time": "2026-04-23",
+        "metrics.best_val_f1_macro": 0.987,
+        "metrics.val_acc": 0.985,
+        "params.max_epochs": "10",
+        "params.batch_size": "512",
+    }])
+
+    with patch("backend.app.predictor.mlflow") as mock_mlflow:
+        mock_mlflow.get_experiment_by_name.return_value = mock_exp
+        mock_mlflow.search_runs.return_value = mock_runs
+        result = instance.list_mlflow_runs()
+
+    assert isinstance(result, list)
+    assert len(result) == 1
+    assert result[0]["run_id"] == "abc123"
+
+
+def test_predictor_list_mlflow_runs_no_experiment_returns_empty():
+    """list_mlflow_runs returns [] when the MLflow experiment does not exist."""
+    from backend.app.predictor import SpendSensePredictor
+
+    instance = SpendSensePredictor()
+    with patch("backend.app.predictor.mlflow") as mock_mlflow:
+        mock_mlflow.get_experiment_by_name.return_value = None
+        result = instance.list_mlflow_runs()
+
+    assert result == []
+
+
+def test_predictor_list_mlflow_runs_exception_returns_empty():
+    """list_mlflow_runs returns [] on unexpected MLflow errors."""
+    from backend.app.predictor import SpendSensePredictor
+
+    instance = SpendSensePredictor()
+    with patch("backend.app.predictor.mlflow") as mock_mlflow:
+        mock_mlflow.get_experiment_by_name.side_effect = Exception("connection refused")
+        result = instance.list_mlflow_runs()
+
+    assert result == []
+
+
+# ── Tests: SpendSensePredictor.load_from_mlflow ───────────────────────────────
+
+def test_predictor_load_from_mlflow_failure_returns_false():
+    """load_from_mlflow returns False when artifact download raises an exception."""
+    from backend.app.predictor import SpendSensePredictor
+
+    instance = SpendSensePredictor()
+    with patch("backend.app.predictor.mlflow") as mock_mlflow:
+        mock_mlflow.artifacts.download_artifacts.side_effect = Exception("run not found")
+        result = instance.load_from_mlflow("nonexistent_run_id")
+
+    assert result is False
+    assert instance.model is None
+
+
+def test_predictor_load_from_mlflow_leaves_model_none_on_failure():
+    """Model remains None after a failed load_from_mlflow call."""
+    from backend.app.predictor import SpendSensePredictor
+
+    instance = SpendSensePredictor()
+    instance.load_from_mlflow("bad_id")
+    assert not instance.is_ready

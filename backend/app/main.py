@@ -8,9 +8,13 @@ Endpoints:
     GET  /metrics          — Prometheus metrics exposition
 """
 
+import json
 import logging
+import os
 import time
+from collections import Counter
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -30,12 +34,20 @@ from backend.app.schemas import (
     BatchPredictItem,
     BatchPredictRequest,
     BatchPredictResponse,
+    FeedbackRequest,
+    FeedbackResponse,
     HealthResponse,
     PredictRequest,
     PredictResponse,
     ReadyResponse,
     SwitchModelRequest,
 )
+
+_FEEDBACK_LOG = Path("feedback/feedback.jsonl")
+_FEATURE_BASELINE = Path(
+    os.environ.get("FEATURE_BASELINE_PATH", "data/processed/feature_baseline.json")
+)
+_DRIFT_THRESHOLD = 0.10
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -198,6 +210,105 @@ def switch_model(request: SwitchModelRequest):
         status_code=500,
         detail=f"Failed to load model from MLflow run {run_id}.",
     )
+
+
+@app.post("/feedback", response_model=FeedbackResponse, tags=["Feedback"])
+def feedback(request: FeedbackRequest) -> FeedbackResponse:
+    """Collect ground truth labels for production performance tracking.
+
+    Args:
+        request: JSON body with description, predicted_category, actual_category.
+
+    Returns:
+        Confirmation that feedback was recorded.
+    """
+    _FEEDBACK_LOG.parent.mkdir(parents=True, exist_ok=True)
+    entry = {
+        "timestamp": time.time(),
+        "description": request.description,
+        "predicted_category": request.predicted_category,
+        "actual_category": request.actual_category,
+        "transaction_id": request.transaction_id,
+        "correct": request.predicted_category == request.actual_category,
+    }
+    with open(_FEEDBACK_LOG, "a") as fh:
+        fh.write(json.dumps(entry) + "\n")
+    REQUEST_COUNT.labels(endpoint="/feedback", status="200").inc()
+    logger.info(
+        "Feedback recorded: predicted=%s actual=%s correct=%s",
+        request.predicted_category, request.actual_category, entry["correct"],
+    )
+    return FeedbackResponse(status="ok", message="Feedback recorded.")
+
+
+@app.get("/drift", tags=["Monitoring"])
+def drift_check():
+    """Compare recent feedback label distribution against the training baseline.
+
+    Uses actual_category from feedback.jsonl and label_distribution from
+    feature_baseline.json. Flags any category whose share shifted by more than
+    10 percentage points.
+    """
+    if not predictor.is_ready:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                            detail="Model not loaded.")
+
+    if not _FEATURE_BASELINE.exists():
+        return {"status": "no_baseline",
+                "message": str(_FEATURE_BASELINE) + " not found."}
+
+    with open(_FEATURE_BASELINE) as fh:
+        baseline_data = json.load(fh)
+
+    raw_dist = baseline_data.get("label_distribution", {})
+    total_baseline = sum(raw_dist.values()) or 1
+    classes = predictor.label_encoder.classes_
+    baseline_norm = {
+        classes[int(k)]: v / total_baseline
+        for k, v in raw_dist.items()
+        if int(k) < len(classes)
+    }
+
+    if not _FEEDBACK_LOG.exists():
+        return {
+            "status": "no_feedback",
+            "message": "No feedback collected yet.",
+            "feedback_samples": 0,
+            "baseline_distribution": {k: round(v, 4) for k, v in baseline_norm.items()},
+        }
+
+    counts: Counter = Counter()
+    with open(_FEEDBACK_LOG) as fh:
+        for line in fh:
+            line = line.strip()
+            if line:
+                entry = json.loads(line)
+                cat = entry.get("actual_category") or entry.get("predicted_category", "")
+                if cat:
+                    counts[cat] += 1
+
+    total_feedback = sum(counts.values()) or 1
+    feedback_norm = {cat: count / total_feedback for cat, count in counts.items()}
+
+    drift_flags = {}
+    for cat in set(list(baseline_norm.keys()) + list(feedback_norm.keys())):
+        base = baseline_norm.get(cat, 0.0)
+        curr = feedback_norm.get(cat, 0.0)
+        shift = abs(curr - base)
+        if shift > _DRIFT_THRESHOLD:
+            drift_flags[cat] = {
+                "baseline": round(base, 4),
+                "current": round(curr, 4),
+                "shift": round(shift, 4),
+            }
+
+    return {
+        "status": "drift_detected" if drift_flags else "ok",
+        "drift_flags": drift_flags,
+        "feedback_samples": total_feedback,
+        "baseline_distribution": {k: round(v, 4) for k, v in baseline_norm.items()},
+        "feedback_distribution": {k: round(v, 4) for k, v in feedback_norm.items()},
+    }
 
 
 @app.get("/metrics", tags=["Monitoring"])

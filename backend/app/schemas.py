@@ -12,7 +12,7 @@ class PredictRequest(BaseModel):
         ...,
         min_length=1,
         max_length=500,
-        example="Zomato food delivery payment",
+        json_schema_extra={"example": "Zomato food delivery payment"},
     )
 
 
@@ -69,5 +69,32 @@ class SwitchModelRequest(BaseModel):
         ...,
         min_length=1,
         description="MLflow run ID to load the model from.",
-        example="c58d6422395d4bebb2c17ce87c5ec37d",
+        json_schema_extra={"example": "c58d6422395d4bebb2c17ce87c5ec37d"},
     )
+
+
+class FeedbackRequest(BaseModel):
+    """Request body for /feedback endpoint — ground truth label collection."""
+
+    description: str = Field(
+        ..., min_length=1, max_length=500,
+        json_schema_extra={"example": "Zomato food delivery payment"},
+    )
+    predicted_category: str = Field(
+        ..., min_length=1,
+        json_schema_extra={"example": "Food & Dining"},
+    )
+    actual_category: str = Field(
+        ..., min_length=1,
+        json_schema_extra={"example": "Food & Dining"},
+    )
+    transaction_id: Optional[str] = Field(
+        None, json_schema_extra={"example": "txn_001"},
+    )
+
+
+class FeedbackResponse(BaseModel):
+    """Response body for /feedback endpoint."""
+
+    status: str
+    message: str

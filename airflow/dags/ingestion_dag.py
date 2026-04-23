@@ -19,6 +19,28 @@ from datetime import datetime, timedelta
 
 import requests
 
+try:
+    from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
+    _PUSHGATEWAY_AVAILABLE = True
+except ImportError:
+    _PUSHGATEWAY_AVAILABLE = False
+
+PUSHGATEWAY_URL = os.environ.get("PUSHGATEWAY_URL", "http://pushgateway:9091")
+
+
+def _push_pipeline_metrics(**metrics: float) -> None:
+    """Push named pipeline metrics to Prometheus Pushgateway."""
+    if not _PUSHGATEWAY_AVAILABLE:
+        return
+    try:
+        registry = CollectorRegistry()
+        for name, value in metrics.items():
+            Gauge(f"spendsense_{name}", f"SpendSense pipeline metric: {name}",
+                  registry=registry).set(value)
+        push_to_gateway(PUSHGATEWAY_URL, job="spendsense_pipeline", registry=registry)
+    except Exception as exc:
+        logger.warning("Could not push pipeline metrics to Pushgateway: %s", exc)
+
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
@@ -127,7 +149,9 @@ def task_check_drift(**context):
     else:
         logger.info("No significant data drift detected.")
 
-    return {"drift_detected": bool(drift_flags), "drift_details": drift_flags}
+    drift_detected = bool(drift_flags)
+    _push_pipeline_metrics(pipeline_drift_detected=float(drift_detected))
+    return {"drift_detected": drift_detected, "drift_details": drift_flags}
 
 
 def task_run_ingest(**context):
@@ -141,7 +165,15 @@ def task_run_ingest(**context):
     logger.info("STDOUT: %s", result.stdout)
     if result.returncode != 0:
         raise RuntimeError(f"Ingest script failed:\n{result.stderr}")
-    return {"returncode": result.returncode}
+
+    try:
+        import pandas as pd  # noqa: PLC0415
+        rows = len(pd.read_csv(INGESTED_PATH))
+    except Exception:
+        rows = 0
+    _push_pipeline_metrics(pipeline_rows_ingested=float(rows),
+                           pipeline_ingest_success=1.0)
+    return {"returncode": result.returncode, "rows_ingested": rows}
 
 
 def task_trigger_dvc(**context):
@@ -185,12 +217,14 @@ def task_trigger_dvc(**context):
         response = requests.post(api_url, headers=headers, json=payload, timeout=30)
         if response.status_code == 204:
             logger.info("GitHub Actions workflow dispatched successfully.")
+            _push_pipeline_metrics(pipeline_dvc_triggered=1.0)
             return {"triggered": True, "status_code": 204}
         else:
             logger.warning(
                 "GitHub Actions dispatch returned HTTP %d: %s",
                 response.status_code, response.text[:500],
             )
+            _push_pipeline_metrics(pipeline_dvc_triggered=0.0)
             return {"triggered": False, "status_code": response.status_code}
     except requests.RequestException as exc:
         logger.error("Failed to trigger GitHub Actions: %s", exc)
