@@ -176,7 +176,7 @@ label_encoder.classes_: np.ndarray
 |---|---|
 | ingest | data/ingested/transactions.csv, baseline_stats.json |
 | preprocess | data/processed/{X,y}_{train,val,test}.npy, vocab.pkl, label_encoder.pkl |
-| train | models/best_model.pt, metrics/train_metrics.json |
+| train | models/latest_model.pt, metrics/train_metrics.json |
 | evaluate | metrics/eval_metrics.json |
 
 ---
