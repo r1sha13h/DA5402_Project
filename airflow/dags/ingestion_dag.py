@@ -125,11 +125,13 @@ def task_check_drift(**context):
     with open(BASELINE_PATH) as fh:
         baseline = json.load(fh)
 
+    # baseline stores raw counts (not proportions), so normalise before comparing
     baseline_dist = baseline.get("category_distribution", {})
     total_baseline = sum(baseline_dist.values()) or 1
     baseline_norm = {k: v / total_baseline for k, v in baseline_dist.items()}
 
     drift_flags = {}
+    # Check every category that appears in either split to catch new or vanished labels
     for cat in set(list(current_dist) + list(baseline_norm)):
         cur  = current_dist.get(cat, 0.0)
         base = baseline_norm.get(cat, 0.0)
@@ -188,6 +190,8 @@ def task_combine_data(**context):
                 if not line:
                     continue
                 entry = json.loads(line)
+                if not isinstance(entry, dict):
+                    continue
                 desc = entry.get("description", "").strip()
                 actual = entry.get("actual_category", "").strip()
                 if desc and actual:

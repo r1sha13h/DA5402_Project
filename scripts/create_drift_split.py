@@ -57,13 +57,14 @@ def create_split(raw_path: str = RAW_PATH, seed: int = SEED) -> dict:
     other_rows = df_remaining[~df_remaining["category"].isin(top_cats)]
 
     n_total = len(df_remaining)
+    # 75% top-3 categories creates a distribution skewed enough to exceed the 10pp threshold
     n_top = int(n_total * 0.75)
     n_other = n_total - n_top
 
     df_top = top_rows.sample(
         n=n_top,
         random_state=seed,
-        replace=True,  # oversample top-3 to guarantee >10pp shift
+        replace=True,  # replace=True because top_rows may be smaller than n_top
     )
     df_other = other_rows.sample(
         n=min(n_other, len(other_rows)),

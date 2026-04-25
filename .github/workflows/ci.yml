@@ -139,7 +139,7 @@ jobs:
             cp "$PROJ_FEEDBACK" feedback/feedback.jsonl
             echo "Restored $(wc -l < feedback/feedback.jsonl) feedback entries."
           else
-            echo '[]' > feedback/feedback.jsonl || touch feedback/feedback.jsonl
+            touch feedback/feedback.jsonl
             echo "No prior feedback.jsonl found — starting fresh."
           fi
 
@@ -181,18 +181,6 @@ jobs:
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3001/api/health 2>/dev/null) || STATUS="000"
           [ "$STATUS" == "200" ] || (echo "Grafana health check failed: HTTP $STATUS" && exit 1)
           echo "Grafana smoke test PASSED."
-
-      - name: Wait for Alertmanager to be healthy
-        run: |
-          for i in $(seq 1 20); do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:9093/-/healthy 2>/dev/null) || STATUS="000"
-            if [ "$STATUS" == "200" ]; then
-              echo "Alertmanager is healthy."
-              break
-            fi
-            echo "Waiting for Alertmanager... ($i/20) [HTTP $STATUS]"
-            sleep 5
-          done
 
       - name: Smoke test — Alertmanager
         run: |
@@ -364,7 +352,9 @@ jobs:
           name: pipeline-artifacts
           path: |
             models/
-            data/processed/
+            data/processed/vocab.pkl
+            data/processed/label_encoder.pkl
+            data/processed/feature_baseline.json
             metrics/
             mlruns/
             params.yaml

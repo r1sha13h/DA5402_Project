@@ -21,7 +21,7 @@
 | MLOps — Experiment Tracking | 2 | 2 | ✅ Full |
 | MLOps — Prometheus + Grafana | 2 | 1.75 | ✅ Good |
 | MLOps — Software Packaging | 4 | 3.5 | ✅ Strong |
-| **Total (excl. Viva)** | **27** | **26.25** | **97%** |
+| **Total (excl. Viva)** | **27** | **24.75** | **91.7%** |
 
 > Viva (8 pts) is performance-dependent and not assessed here.
 

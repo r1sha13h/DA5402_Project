@@ -81,6 +81,8 @@ services:
       - AIRFLOW_URL=http://airflow:8080
       - GRAFANA_URL=http://grafana:3000
       - PUSHGATEWAY_URL=http://pushgateway:9091
+      - PROMETHEUS_URL=http://prometheus:9090
+      - ALERTMANAGER_URL=http://alertmanager:9093
     depends_on:
       backend:
         condition: service_healthy

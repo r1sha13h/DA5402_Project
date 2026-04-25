@@ -74,3 +74,67 @@ groups:
           description: >
             Training completed in {{ $value | humanizeDuration }}
             (threshold: 2 hours). Check for data size increase or resource issues.
+
+  # ── Pipeline / data quality alerts ─────────────────────────────────────────
+  - name: spendsense_pipeline
+    rules:
+      - alert: DataDriftDetected
+        expr: spendsense_pipeline_drift_detected == 1
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SpendSense Airflow detected category distribution drift"
+          description: >
+            Airflow drift check flagged a category shift > 10 percentage points.
+            Review GET /drift and consider scheduling a retraining run.
+
+      - alert: IngestFailed
+        expr: spendsense_pipeline_ingest_success == 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "SpendSense Airflow ingest task failed"
+          description: >
+            The ingestion pipeline did not complete successfully.
+            Check Airflow logs at http://localhost:8080.
+
+      - alert: FeedbackLoopDead
+        expr: increase(spendsense_feedback_total[24h]) == 0
+        for: 48h
+        labels:
+          severity: warning
+        annotations:
+          summary: "No feedback collected in the last 24 hours"
+          description: >
+            The feedback loop appears inactive. Check POST /feedback
+            is reachable and the frontend is operational.
+
+  # ── Tail latency and traffic alerts ────────────────────────────────────────
+  - name: spendsense_traffic
+    rules:
+      - alert: TailLatencySpike
+        expr: >
+          histogram_quantile(0.99,
+            rate(spendsense_request_latency_seconds_bucket{endpoint="/predict"}[5m])
+          ) > 1.0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SpendSense P99 latency > 1s on /predict"
+          description: >
+            99th-percentile latency is {{ $value | humanizeDuration }}
+            (threshold: 1 s). Possible resource contention or model issue.
+
+      - alert: FrequentModelSwitch
+        expr: increase(spendsense_model_switches_total[1h]) > 3
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SpendSense model hot-swapped > 3 times in 1 hour"
+          description: >
+            Frequent model switching may indicate instability or
+            misconfiguration. Review POST /models/switch call patterns.
