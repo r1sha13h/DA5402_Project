@@ -1,8 +1,10 @@
 """SpendSense Streamlit Frontend — Pipeline Status & Monitoring Page."""
 
+import base64
 import os
 import subprocess
 
+import pandas as pd
 import requests
 import streamlit as st
 
@@ -265,3 +267,65 @@ if st.button("🔄 Render DAG"):
     st.code(dag_text if dag_text else _DAG_FALLBACK, language="text")
 else:
     st.code(_DAG_FALLBACK, language="text")
+
+st.divider()
+
+# ── Airflow DAG Run History ───────────────────────────────────────────────────
+st.subheader("📅 Airflow DAG Run History")
+
+_AUTH = base64.b64encode(b"admin:admin").decode()
+
+try:
+    runs_resp = requests.get(
+        f"{AIRFLOW_URL}/api/v1/dags/spendsense_ingestion_pipeline/dagRuns",
+        headers={"Authorization": f"Basic {_AUTH}"},
+        params={"order_by": "-start_date", "limit": 10},
+        timeout=5,
+    )
+    if runs_resp.status_code == 200:
+        dag_runs = runs_resp.json().get("dag_runs", [])
+        if dag_runs:
+            rows = []
+            for run in dag_runs:
+                state = run.get("state", "unknown")
+                icon = "✅" if state == "success" else ("❌" if state == "failed" else "🔄")
+                rows.append({
+                    "Run ID": run.get("dag_run_id", ""),
+                    "State": f"{icon} {state}",
+                    "Start": (run.get("start_date") or "")[:19],
+                    "End": (run.get("end_date") or "")[:19],
+                })
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+            # Show task-level breakdown for the most recent run
+            latest_run_id = dag_runs[0].get("dag_run_id")
+            if latest_run_id:
+                with st.expander(f"Task breakdown — latest run: `{latest_run_id}`"):
+                    tasks_resp = requests.get(
+                        f"{AIRFLOW_URL}/api/v1/dags/spendsense_ingestion_pipeline"
+                        f"/dagRuns/{latest_run_id}/taskInstances",
+                        headers={"Authorization": f"Basic {_AUTH}"},
+                        timeout=5,
+                    )
+                    if tasks_resp.status_code == 200:
+                        task_instances = tasks_resp.json().get("task_instances", [])
+                        task_rows = []
+                        for ti in task_instances:
+                            ts = ti.get("state", "unknown")
+                            tico = "✅" if ts == "success" else ("❌" if ts == "failed" else "⏭️" if ts == "skipped" else "🔄")
+                            task_rows.append({
+                                "Task": ti.get("task_id", ""),
+                                "State": f"{tico} {ts}",
+                                "Duration (s)": round(ti.get("duration") or 0, 1),
+                            })
+                        st.dataframe(pd.DataFrame(task_rows), use_container_width=True, hide_index=True)
+                    else:
+                        st.warning(f"Could not fetch task instances (HTTP {tasks_resp.status_code})")
+        else:
+            st.info("No DAG runs found for `spendsense_ingestion_pipeline` yet.")
+    elif runs_resp.status_code == 404:
+        st.info("DAG `spendsense_ingestion_pipeline` not found — Airflow may not be running.")
+    else:
+        st.warning(f"Airflow API returned HTTP {runs_resp.status_code}")
+except requests.exceptions.RequestException:
+    st.error("Could not reach the Airflow API. Check that the Airflow service is running.")

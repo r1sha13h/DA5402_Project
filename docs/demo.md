@@ -109,6 +109,7 @@ cp .env.example .env   # if present, or create manually
 ### Step 3 — Start all services
 
 ```bash
+cd DA5402_Project   # must run from the project root, not a parent directory
 docker compose up -d
 ```
 

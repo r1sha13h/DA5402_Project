@@ -45,6 +45,25 @@ def _classify_descriptions(descriptions: list) -> list:
     return resp.json()["results"]
 
 
+def _clean_hdfc_narration(narration: str) -> str:
+    """Strip HDFC transaction-code prefixes so the model sees natural language.
+
+    HDFC narrations look like "UPI/ZOMATO/9148/FoodOrder" or "NEFT/SALARY/JOHN".
+    The BiLSTM was trained on clean descriptions; removing these prefixes improves
+    category accuracy substantially.
+    """
+    s = str(narration).strip()
+    # Remove leading transaction type code and the slash/space after it
+    s = re.sub(
+        r'^(UPI|NEFT|RTGS|IMPS|ACH|ECS|SI|POS|ATM|CLG|BIL|NACH|NACH D-|DR|TO)\s*/?\s*',
+        '', s, flags=re.IGNORECASE,
+    )
+    # Remove bare reference numbers that got left at the front (e.g. "123456789 SUPERMART")
+    s = re.sub(r'^\d[\d/]*\s*', '', s)
+    s = re.sub(r'\s+', ' ', s).strip()
+    return s if s else narration  # keep original if cleaning leaves nothing
+
+
 def _process_hdfc_xls(file_obj) -> pd.DataFrame:
     """Auto-detect header row in HDFC bank statement XLS and return (description, amount)."""
     raw = pd.read_excel(file_obj, header=None, engine="xlrd", dtype=str)
@@ -59,6 +78,7 @@ def _process_hdfc_xls(file_obj) -> pd.DataFrame:
     if header_row_idx is None:
         raise ValueError("Could not find a 'Narration' column header in the uploaded file.")
 
+    # Seek back to 0 because xlrd consumed the stream; re-read with the correct header row
     file_obj.seek(0)
     df = pd.read_excel(file_obj, header=header_row_idx, engine="xlrd", dtype=str)
 
@@ -79,7 +99,7 @@ def _process_hdfc_xls(file_obj) -> pd.DataFrame:
             f"'Withdrawal Amt.' column not found. Columns present: {list(df.columns)}"
         )
 
-    # Keep only rows that look like actual transaction dates
+    # Filter to rows with a valid date — drops the bank's summary/footer rows
     check_col = date_col if date_col else df.columns[0]
     date_mask = df[check_col].astype(str).str.match(r"^\d{1,2}/\d{1,2}/\d{2,4}$")
     df = df[date_mask].copy()
@@ -89,7 +109,7 @@ def _process_hdfc_xls(file_obj) -> pd.DataFrame:
     df = df[~df[withdrawal_col].astype(str).str.strip().isin(["", "nan", "NaN"])]
 
     result = pd.DataFrame({
-        "description": df[narration_col].astype(str).str.strip(),
+        "description": df[narration_col].astype(str).str.strip().apply(_clean_hdfc_narration),
         "amount": pd.to_numeric(df[withdrawal_col], errors="coerce"),
     })
     result = result.dropna(subset=["amount"])
