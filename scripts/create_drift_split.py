@@ -41,15 +41,15 @@ def create_split(raw_path: str = RAW_PATH, seed: int = SEED) -> dict:
     print(f"Full distribution:\n{df['category'].value_counts(normalize=True).round(3).to_string()}\n")
 
     # ── 90%: stratified sample (proportional to full distribution) ────────────
-    df_90 = (
+    df_90_sampled = (
         df.groupby("category", group_keys=False)
-        .apply(lambda x: x.sample(frac=0.90, random_state=seed))
-        .reset_index(drop=True)
+        .sample(frac=0.90, random_state=seed)
     )
+    sampled_idx = set(df_90_sampled.index)
+    df_90 = df_90_sampled.reset_index(drop=True)
 
-    # ── Remaining rows (natural 10%) ──────────────────────────────────────────
-    remaining_idx = df.index.difference(df_90.index)
-    df_remaining = df.loc[remaining_idx].reset_index(drop=True)
+    # ── Remaining rows (natural ~10%) ─────────────────────────────────────────
+    df_remaining = df[~df.index.isin(sampled_idx)].reset_index(drop=True)
 
     # ── Build drifted 10%: oversample top-3 categories from remaining ─────────
     top_cats = df["category"].value_counts().index[:3].tolist()
@@ -61,14 +61,14 @@ def create_split(raw_path: str = RAW_PATH, seed: int = SEED) -> dict:
     n_other = n_total - n_top
 
     df_top = top_rows.sample(
-        n=min(n_top, len(top_rows)),
+        n=n_top,
         random_state=seed,
-        replace=(len(top_rows) < n_top),
+        replace=True,  # oversample top-3 to guarantee >10pp shift
     )
     df_other = other_rows.sample(
         n=min(n_other, len(other_rows)),
         random_state=seed,
-        replace=(len(other_rows) < n_other),
+        replace=False,
     )
 
     df_drift = (
