@@ -100,6 +100,7 @@ services:
       - ./models:/opt/airflow/project/models
       - ./src:/opt/airflow/project/src
       - ./params.yaml:/opt/airflow/project/params.yaml
+      - ./feedback:/opt/airflow/project/feedback
     environment:
       - AIRFLOW__CORE__EXECUTOR=SequentialExecutor
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
@@ -108,6 +109,7 @@ services:
       - PUSHGATEWAY_URL=http://pushgateway:9091
       - GITHUB_PAT=${GITHUB_PAT:-}
       - GITHUB_REPO=r1sha13h/DA5402_Project
+      - GITHUB_ACTIONS=${GITHUB_ACTIONS:-false}
     command: bash -c "airflow db migrate && airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@spendsense.local || true && airflow standalone"
 
   # ── 5. Alertmanager ──────────────────────────────────────────────────────────
@@ -118,18 +120,17 @@ services:
     ports:
       - "9093:9093"
     volumes:
-      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml.tmpl:ro
+      - ./monitoring/alertmanager-entrypoint.sh:/entrypoint.sh:ro
     environment:
       - ALERTMANAGER_SMTP_PASSWORD=${ALERTMANAGER_SMTP_PASSWORD}
-    command:
-      - "--config.file=/etc/alertmanager/alertmanager.yml"
-      - "--storage.path=/alertmanager"
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:9093/-/healthy || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 15s
 
   # ── 6. Prometheus Pushgateway ────────────────────────────────────────────────
   pushgateway:

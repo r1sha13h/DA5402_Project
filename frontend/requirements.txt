@@ -2,3 +2,5 @@ streamlit>=1.35.0
 requests>=2.32.0
 pandas>=2.2.0
 prometheus-client>=0.20.0
+xlrd>=2.0.1
+openpyxl>=3.1.0

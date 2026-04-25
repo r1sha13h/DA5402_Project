@@ -165,7 +165,7 @@ class SpendSensePredictor:
 
     @staticmethod
     def list_mlflow_runs(max_results: int = 20) -> List[Dict[str, Any]]:
-        """List recent MLflow runs for the SpendSense experiment.
+        """List recent finished training MLflow runs for the SpendSense experiment.
 
         Args:
             max_results: Maximum number of runs to return.
@@ -173,28 +173,50 @@ class SpendSensePredictor:
         Returns:
             List of dicts with run_id, metrics, start_time, status.
         """
+        import math
+
         tracking_uri = os.environ.get("MLFLOW_TRACKING_URI", "mlruns")
         mlflow.set_tracking_uri(tracking_uri)
+
+        def _safe_metric(row, key):
+            val = row.get(key)
+            if val is None:
+                return None
+            try:
+                fval = float(val)
+                return None if math.isnan(fval) else fval
+            except (TypeError, ValueError):
+                return None
 
         try:
             experiment = mlflow.get_experiment_by_name("SpendSense")
             if experiment is None:
                 return []
 
+            # Only return finished training runs (both initial and finetune) which
+            # have model artifacts and real metrics; evaluation sub-runs are excluded.
             runs = mlflow.search_runs(
                 experiment_ids=[experiment.experiment_id],
+                filter_string=(
+                    "status = 'FINISHED' AND ("
+                    "tags.`mlflow.runName` = 'bilstm_training' OR "
+                    "tags.`mlflow.runName` = 'bilstm_finetune'"
+                    ")"
+                ),
                 order_by=["start_time DESC"],
                 max_results=max_results,
             )
 
             result = []
             for _, row in runs.iterrows():
+                run_name = row.get("tags.mlflow.runName", "")
                 result.append({
                     "run_id": row["run_id"],
+                    "run_name": run_name,
                     "status": row.get("status", ""),
                     "start_time": str(row.get("start_time", "")),
-                    "best_val_f1": row.get("metrics.best_val_f1_macro", None),
-                    "val_acc": row.get("metrics.val_acc", None),
+                    "best_val_f1": _safe_metric(row, "metrics.best_val_f1_macro"),
+                    "val_acc": _safe_metric(row, "metrics.val_acc"),
                     "max_epochs": row.get("params.max_epochs", None),
                     "batch_size": row.get("params.batch_size", None),
                 })

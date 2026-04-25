@@ -112,11 +112,17 @@ def main() -> None:
     tp = params["train"]
     dp = params["data"]
 
+    # Finetune mode: load weights from a previous run and train for 1 epoch
+    finetune_path = os.environ.get("FINETUNE_MODEL_PATH", "").strip()
+    is_finetune = bool(finetune_path and os.path.exists(finetune_path))
+    run_name = "bilstm_finetune" if is_finetune else "bilstm_training"
+    max_epochs = 1 if is_finetune else tp["epochs"]
+
     seed = tp["seed"]
     torch.manual_seed(seed)
     np.random.seed(seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    logger.info("Using device: %s", device)
+    logger.info("Using device: %s  |  finetune=%s", device, is_finetune)
 
     logger.info("Loading preprocessed data from %s ...", dp["processed_dir"])
     X_train, X_val, y_train, y_val, vocab, label_encoder = load_processed_data(
@@ -147,6 +153,12 @@ def main() -> None:
         dropout=tp["dropout"],
     ).to(device)
 
+    if is_finetune:
+        model.load_state_dict(
+            torch.load(finetune_path, map_location=device, weights_only=True)
+        )
+        logger.info("Loaded pre-trained weights from %s for fine-tuning.", finetune_path)
+
     optimizer = torch.optim.Adam(model.parameters(), lr=tp["learning_rate"])
     criterion = nn.CrossEntropyLoss()
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=2)
@@ -154,7 +166,7 @@ def main() -> None:
     mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", "mlruns"))
     mlflow.set_experiment("SpendSense")
 
-    with mlflow.start_run(run_name="bilstm_training") as run:
+    with mlflow.start_run(run_name=run_name) as run:
         mlflow.log_params({
             "embed_dim": tp["embed_dim"],
             "hidden_dim": tp["hidden_dim"],
@@ -162,10 +174,11 @@ def main() -> None:
             "dropout": tp["dropout"],
             "batch_size": tp["batch_size"],
             "learning_rate": tp["learning_rate"],
-            "max_epochs": tp["epochs"],
+            "max_epochs": max_epochs,
             "vocab_size": vocab_size,
             "num_classes": num_classes,
             "seed": seed,
+            "finetune": str(is_finetune),
         })
 
         best_val_f1 = 0.0
@@ -174,7 +187,7 @@ def main() -> None:
         best_model_path = os.path.join("models", "latest_model.pt")
 
         training_start = time.time()
-        epoch_bar = tqdm(range(1, tp["epochs"] + 1), desc="Epochs", unit="epoch")
+        epoch_bar = tqdm(range(1, max_epochs + 1), desc="Epochs", unit="epoch")
         for epoch in epoch_bar:
             tr_loss, tr_acc, tr_f1 = run_epoch(
                 model, train_loader, optimizer, criterion, device, training=True

@@ -109,8 +109,8 @@ jobs:
 
       - name: Ensure raw data exists
         run: |
+          RUNNER_DATA="/home/rishabh/Documents/IITM/MLOps/Project/DA5402_Project/data/raw/transactions.csv"
           if [ ! -f data/raw/transactions.csv ]; then
-            RUNNER_DATA="/home/rishabh/Documents/IITM/MLOps/Project/DA5402_Project/data/raw/transactions.csv"
             if [ -f "$RUNNER_DATA" ]; then
               echo "Copying raw data from runner project directory..."
               mkdir -p data/raw
@@ -120,6 +120,26 @@ jobs:
             fi
           fi
           echo "Raw data ready: $(wc -l < data/raw/transactions.csv) lines"
+
+      - name: Create 90-10 drift split
+        run: |
+          mkdir -p data/raw data/drift
+          python scripts/create_drift_split.py --raw data/raw/transactions.csv --verify
+          # Use 90% split as baseline for first DVC run
+          cp data/raw/transactions_90.csv data/raw/transactions.csv
+          echo "Using 90% split for first DVC run: $(wc -l < data/raw/transactions.csv) rows"
+
+      - name: Restore feedback.jsonl from project directory
+        run: |
+          PROJ_FEEDBACK="/home/rishabh/Documents/IITM/MLOps/Project/DA5402_Project/feedback/feedback.jsonl"
+          mkdir -p feedback
+          if [ -f "$PROJ_FEEDBACK" ]; then
+            cp "$PROJ_FEEDBACK" feedback/feedback.jsonl
+            echo "Restored $(wc -l < feedback/feedback.jsonl) feedback entries."
+          else
+            echo '[]' > feedback/feedback.jsonl || touch feedback/feedback.jsonl
+            echo "No prior feedback.jsonl found — starting fresh."
+          fi
 
       - name: Build infra Docker images
         run: docker compose build mlflow alertmanager pushgateway prometheus grafana
@@ -201,11 +221,16 @@ jobs:
       - name: DVC pull cached stages
         run: dvc pull --run-cache || echo "No remote cache available, running from scratch"
 
-      - name: Run DVC pipeline (ingest → preprocess → train → evaluate)
+      - name: Run DVC pipeline — Run 1 (ingest → preprocess → train → evaluate on 90% data)
         env:
           MLFLOW_TRACKING_URI: http://localhost:5000
           PUSHGATEWAY_URL: http://localhost:9091
         run: dvc repro
+
+      - name: Preserve Run-1 model for fine-tuning
+        run: |
+          cp models/latest_model.pt models/run1_model.pt
+          echo "Run-1 model saved for fine-tuning."
 
       - name: Verify Prometheus received training metrics
         run: |
@@ -225,15 +250,7 @@ jobs:
             fi
           done
 
-      - name: Save MLflow runs back to project directory
-        run: |
-          PROJ_MLRUNS="/home/rishabh/Documents/IITM/MLOps/Project/DA5402_Project/mlruns"
-          echo "Saving mlruns to $PROJ_MLRUNS ..."
-          mkdir -p "$PROJ_MLRUNS"
-          cp -a mlruns/. "$PROJ_MLRUNS/"
-          echo "Saved $(find "$PROJ_MLRUNS" -name '*.json' | wc -l) run metadata files."
-
-      - name: Check evaluation metrics
+      - name: Check evaluation metrics (Run 1 — 90% baseline)
         run: |
           python - <<'EOF'
           import json, sys
@@ -279,6 +296,66 @@ jobs:
             sleep 10
           done
           echo "Airflow health check failed after 3 attempts: HTTP $STATUS" && exit 1
+
+      - name: Trigger Airflow DAG (drift detection + combine_data)
+        env:
+          GITHUB_ACTIONS: "true"
+        run: |
+          AUTH=$(echo -n 'admin:admin' | base64)
+          RUN_ID="ci_run_$(date +%s)"
+          TRIGGER=$(curl -s -X POST \
+            "http://localhost:8080/api/v1/dags/spendsense_ingestion_pipeline/dagRuns" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Basic $AUTH" \
+            -d "{\"dag_run_id\": \"$RUN_ID\"}")
+          echo "Trigger response: $TRIGGER"
+          STATE=""
+          for i in $(seq 1 60); do
+            RESP=$(curl -s \
+              "http://localhost:8080/api/v1/dags/spendsense_ingestion_pipeline/dagRuns/$RUN_ID" \
+              -H "Authorization: Basic $AUTH")
+            STATE=$(echo "$RESP" | python -c \
+              "import json,sys; d=json.load(sys.stdin); print(d.get('state','unknown'))" 2>/dev/null || echo "unknown")
+            echo "DAG state: $STATE ($i/60)"
+            [ "$STATE" = "success" ] && echo "Airflow DAG completed successfully." && break
+            [ "$STATE" = "failed"  ] && echo "WARNING: Airflow DAG failed — proceeding with combined data if written." && break
+            sleep 10
+          done
+          # Verify combined transactions.csv was written by combine_data task
+          if [ -f data/raw/transactions.csv ]; then
+            echo "Combined data ready: $(wc -l < data/raw/transactions.csv) rows"
+          else
+            echo "WARNING: data/raw/transactions.csv not updated by Airflow — using 90%+10% merge fallback."
+            cat data/raw/transactions_90.csv > data/raw/transactions.csv
+            tail -n +2 data/drift/transactions_drift.csv >> data/raw/transactions.csv
+            echo "Fallback combined: $(wc -l < data/raw/transactions.csv) rows"
+          fi
+
+      - name: Run DVC pipeline — Run 2 (fine-tune on 90%+10%+feedback for 1 epoch)
+        env:
+          MLFLOW_TRACKING_URI: http://localhost:5000
+          PUSHGATEWAY_URL: http://localhost:9091
+          FINETUNE_MODEL_PATH: models/run1_model.pt
+        run: dvc repro --force
+
+      - name: Save MLflow runs back to project directory
+        run: |
+          PROJ_MLRUNS="/home/rishabh/Documents/IITM/MLOps/Project/DA5402_Project/mlruns"
+          echo "Saving mlruns to $PROJ_MLRUNS ..."
+          mkdir -p "$PROJ_MLRUNS"
+          cp -a mlruns/. "$PROJ_MLRUNS/"
+          echo "Saved $(find "$PROJ_MLRUNS" -name '*.json' | wc -l) run metadata files."
+
+      - name: Persist feedback.jsonl to project directory
+        run: |
+          PROJ_FEEDBACK="/home/rishabh/Documents/IITM/MLOps/Project/DA5402_Project/feedback"
+          mkdir -p "$PROJ_FEEDBACK"
+          if [ -f feedback/feedback.jsonl ]; then
+            cp feedback/feedback.jsonl "$PROJ_FEEDBACK/feedback.jsonl"
+            echo "Saved $(wc -l < feedback/feedback.jsonl) feedback entries."
+          else
+            echo "No feedback.jsonl to persist."
+          fi
 
       - name: Upload pipeline artifacts
         uses: actions/upload-artifact@v4

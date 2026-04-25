@@ -1,7 +1,6 @@
 {
   "title": "SpendSense — MLOps Dashboard",
   "uid": "spendsense-main",
-  "version": 1,
   "schemaVersion": 39,
   "refresh": "10s",
   "time": { "from": "now-1h", "to": "now" },
@@ -33,43 +32,33 @@
       ]
     },
     {
-      "id": 3,
-      "title": "Error Rate",
-      "type": "gauge",
-      "gridPos": { "x": 0, "y": 8, "w": 6, "h": 6 },
-      "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] },
-        "thresholds": {
-          "steps": [
-            { "color": "green", "value": 0 },
-            { "color": "yellow", "value": 0.02 },
-            { "color": "red", "value": 0.05 }
-          ]
-        }
-      },
-      "targets": [
-        {
-          "expr": "spendsense_error_rate",
-          "legendFormat": "Error Rate",
-          "datasource": "Prometheus"
-        }
-      ]
-    },
-    {
       "id": 4,
       "title": "Model Loaded",
       "type": "stat",
-      "gridPos": { "x": 6, "y": 8, "w": 6, "h": 6 },
+      "gridPos": { "x": 0, "y": 8, "w": 8, "h": 6 },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "1": { "text": "Model Loaded", "color": "green" },
+                "0": { "text": "Not Loaded",   "color": "red"   }
+              }
+            }
+          ]
+        }
+      },
       "options": {
         "reduceOptions": { "calcs": ["lastNotNull"] },
         "colorMode": "background",
         "graphMode": "none",
-        "textMode": "value_and_name"
+        "textMode": "value"
       },
       "targets": [
         {
           "expr": "spendsense_model_loaded",
-          "legendFormat": "Model Ready",
+          "legendFormat": "Model Status",
           "datasource": "Prometheus"
         }
       ]
@@ -78,7 +67,7 @@
       "id": 5,
       "title": "Predictions by Category",
       "type": "piechart",
-      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "gridPos": { "x": 8, "y": 8, "w": 16, "h": 8 },
       "targets": [
         {
           "expr": "spendsense_predictions_by_category_total",
@@ -91,7 +80,7 @@
       "id": 6,
       "title": "Total Requests",
       "type": "stat",
-      "gridPos": { "x": 0, "y": 14, "w": 6, "h": 4 },
+      "gridPos": { "x": 0, "y": 16, "w": 6, "h": 4 },
       "targets": [
         {
           "expr": "sum(spendsense_requests_total)",
@@ -104,7 +93,7 @@
       "id": 7,
       "title": "Batch Size Distribution",
       "type": "histogram",
-      "gridPos": { "x": 6, "y": 14, "w": 18, "h": 6 },
+      "gridPos": { "x": 6, "y": 16, "w": 18, "h": 6 },
       "targets": [
         {
           "expr": "rate(spendsense_batch_size_bucket[5m])",
@@ -117,92 +106,125 @@
       "id": 8,
       "title": "— Training Metrics —",
       "type": "text",
-      "gridPos": { "x": 0, "y": 20, "w": 24, "h": 2 },
-      "options": { "content": "## Training & Evaluation Metrics", "mode": "markdown" }
-    },
-    {
-      "id": 9,
-      "title": "Training Val F1 (Macro)",
-      "type": "stat",
-      "gridPos": { "x": 0, "y": 22, "w": 6, "h": 6 },
-      "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] },
-        "colorMode": "background",
-        "graphMode": "area",
-        "textMode": "value_and_name",
-        "thresholds": {
-          "steps": [
-            { "color": "red", "value": 0 },
-            { "color": "yellow", "value": 0.70 },
-            { "color": "green", "value": 0.85 }
-          ]
-        }
-      },
-      "targets": [
-        {
-          "expr": "spendsense_training_val_f1",
-          "legendFormat": "Val F1",
-          "datasource": "Prometheus"
-        }
-      ]
-    },
-    {
-      "id": 10,
-      "title": "Test F1 Macro",
-      "type": "stat",
-      "gridPos": { "x": 6, "y": 22, "w": 6, "h": 6 },
-      "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] },
-        "colorMode": "background",
-        "graphMode": "area",
-        "textMode": "value_and_name",
-        "thresholds": {
-          "steps": [
-            { "color": "red", "value": 0 },
-            { "color": "yellow", "value": 0.70 },
-            { "color": "green", "value": 0.85 }
-          ]
-        }
-      },
-      "targets": [
-        {
-          "expr": "spendsense_test_f1_macro",
-          "legendFormat": "Test F1",
-          "datasource": "Prometheus"
-        }
-      ]
-    },
-    {
-      "id": 11,
-      "title": "Test Accuracy",
-      "type": "stat",
-      "gridPos": { "x": 12, "y": 22, "w": 6, "h": 6 },
-      "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] },
-        "colorMode": "background",
-        "graphMode": "area",
-        "textMode": "value_and_name",
-        "thresholds": {
-          "steps": [
-            { "color": "red", "value": 0 },
-            { "color": "yellow", "value": 0.70 },
-            { "color": "green", "value": 0.85 }
-          ]
-        }
-      },
-      "targets": [
-        {
-          "expr": "spendsense_test_accuracy",
-          "legendFormat": "Accuracy",
-          "datasource": "Prometheus"
-        }
-      ]
+      "gridPos": { "x": 0, "y": 22, "w": 24, "h": 2 },
+      "options": { "content": "## Training Metrics", "mode": "markdown" }
     },
     {
       "id": 12,
       "title": "Training Duration (s)",
       "type": "stat",
-      "gridPos": { "x": 18, "y": 22, "w": 6, "h": 6 },
+      "gridPos": { "x": 0, "y": 24, "w": 8, "h": 6 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "thresholds": {
+          "steps": [
+            { "color": "green",  "value": 0    },
+            { "color": "yellow", "value": 1800 },
+            { "color": "red",    "value": 3600 }
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "spendsense_training_duration_seconds",
+          "legendFormat": "Duration",
+          "datasource": "Prometheus"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "title": "Latency Percentiles — P50 / P95 / P99 on /predict",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 30, "w": 24, "h": 8 },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "custom": { "lineWidth": 2 } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "p99" }, "properties": [{ "id": "color", "value": { "fixedColor": "red",    "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "p95" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "p50" }, "properties": [{ "id": "color", "value": { "fixedColor": "green",  "mode": "fixed" } }] }
+        ]
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, rate(spendsense_request_latency_seconds_bucket{endpoint=\"/predict\"}[1m]))",
+          "legendFormat": "p50",
+          "datasource": "Prometheus"
+        },
+        {
+          "expr": "histogram_quantile(0.95, rate(spendsense_request_latency_seconds_bucket{endpoint=\"/predict\"}[1m]))",
+          "legendFormat": "p95",
+          "datasource": "Prometheus"
+        },
+        {
+          "expr": "histogram_quantile(0.99, rate(spendsense_request_latency_seconds_bucket{endpoint=\"/predict\"}[1m]))",
+          "legendFormat": "p99",
+          "datasource": "Prometheus"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "title": "— Feedback Loop & Drift Detection —",
+      "type": "text",
+      "gridPos": { "x": 0, "y": 38, "w": 24, "h": 2 },
+      "options": { "content": "## Feedback Loop & Drift Detection", "mode": "markdown" }
+    },
+    {
+      "id": 15,
+      "title": "Feedback Entries",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 40, "w": 6, "h": 6 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "spendsense_feedback_total",
+          "legendFormat": "Feedback Count",
+          "datasource": "Prometheus"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "title": "Max Drift Score (last /drift call)",
+      "type": "gauge",
+      "gridPos": { "x": 6, "y": 40, "w": 6, "h": 6 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": 0    },
+              { "color": "yellow", "value": 0.05 },
+              { "color": "red",    "value": 0.10 }
+            ]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [
+        {
+          "expr": "spendsense_drift_score",
+          "legendFormat": "Max Shift",
+          "datasource": "Prometheus"
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "title": "Airflow Drift Flag",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 40, "w": 6, "h": 6 },
       "options": {
         "reduceOptions": { "calcs": ["lastNotNull"] },
         "colorMode": "background",
@@ -211,15 +233,84 @@
         "thresholds": {
           "steps": [
             { "color": "green", "value": 0 },
-            { "color": "yellow", "value": 1800 },
-            { "color": "red", "value": 3600 }
+            { "color": "red",   "value": 1 }
           ]
         }
       },
       "targets": [
         {
-          "expr": "spendsense_training_duration_seconds",
-          "legendFormat": "Duration",
+          "expr": "spendsense_pipeline_drift_detected",
+          "legendFormat": "Drift Detected",
+          "datasource": "Prometheus"
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "title": "Rows Ingested (last Airflow run)",
+      "type": "stat",
+      "gridPos": { "x": 18, "y": 40, "w": 6, "h": 6 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "spendsense_pipeline_rows_ingested",
+          "legendFormat": "Rows",
+          "datasource": "Prometheus"
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "title": "— Model Management —",
+      "type": "text",
+      "gridPos": { "x": 0, "y": 46, "w": 24, "h": 2 },
+      "options": { "content": "## Model Management", "mode": "markdown" }
+    },
+    {
+      "id": 20,
+      "title": "Model Hot-Swaps",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 48, "w": 6, "h": 4 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "spendsense_model_switches_total",
+          "legendFormat": "Switches",
+          "datasource": "Prometheus"
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "title": "Alertmanager Alerts Firing",
+      "type": "stat",
+      "gridPos": { "x": 6, "y": 48, "w": 6, "h": 4 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "thresholds": {
+          "steps": [
+            { "color": "green", "value": 0 },
+            { "color": "red",   "value": 1 }
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(alertmanager_alerts{state=\"firing\"})",
+          "legendFormat": "Firing",
           "datasource": "Prometheus"
         }
       ]
