@@ -43,6 +43,22 @@ BATCH_SIZE = Histogram(
     buckets=[1, 5, 10, 25, 50, 100, 250, 500],
 )
 
+# ── Feedback, drift, and model-management metrics ─────────────────────────
+FEEDBACK_TOTAL = Counter(
+    "spendsense_feedback_total",
+    "Total number of feedback entries recorded via POST /feedback",
+)
+
+DRIFT_SCORE = Gauge(
+    "spendsense_drift_score",
+    "Maximum per-category distribution shift from the last /drift check",
+)
+
+MODEL_SWITCHES = Counter(
+    "spendsense_model_switches_total",
+    "Total number of model hot-swap operations via POST /models/switch",
+)
+
 # ── Rolling window for error-rate calculation ─────────────────────────────────
 _WINDOW = 100
 _recent: list = []
