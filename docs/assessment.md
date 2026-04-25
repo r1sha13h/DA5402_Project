@@ -1,10 +1,9 @@
 # SpendSense — Compliance Assessment Report
 
 **Project:** DA5402 MLOps — SpendSense: Personal Expense Category Classifier  
-**Assessment Date:** 2026-04-23  
-**Evaluated Against:** Application Guidelines.md · Evaluation Guideline.md · Statement.md  
-**Latest CI Run:** #24826350281 — All 3 jobs passed · 52/52 unit tests · F1 = 0.9872  
-**Post-fix local test run:** 67/67 unit tests pass · 1 warning (MLflow library FutureWarning, not project code)
+**Assessment Date:** 2026-04-25  
+**Evaluated Against:** `docs/application guidelines.md` · `docs/evaluation guideline.md`  
+**Latest CI Run:** #24928575305 — All 3 jobs passed · 67/67 unit tests · F1 = 0.9872  
 
 ---
 
@@ -15,14 +14,14 @@
 | Demonstration — UI/UX | 6 | 5.5 | ✅ Strong |
 | Demonstration — ML Pipeline Visualization | 4 | 3.5 | ✅ Good |
 | Software Engineering — Design Principles | 2 | 2 | ✅ Full |
-| Software Engineering — Implementation | 2 | 2 | ✅ Full |
+| Software Engineering — Implementation | 2 | 1.5 | ✅ Good |
 | Software Engineering — Testing | 1 | 1 | ✅ Full |
 | MLOps — Data Engineering | 2 | 2 | ✅ Full |
 | MLOps — Source Control & CI | 2 | 2 | ✅ Full |
 | MLOps — Experiment Tracking | 2 | 2 | ✅ Full |
 | MLOps — Prometheus + Grafana | 2 | 1.75 | ✅ Good |
 | MLOps — Software Packaging | 4 | 3.5 | ✅ Strong |
-| **Total (excl. Viva)** | **27** | **26.5** | **98%** |
+| **Total (excl. Viva)** | **27** | **26.25** | **97%** |
 
 > Viva (8 pts) is performance-dependent and not assessed here.
 
@@ -30,40 +29,40 @@
 
 ## Section 1 — Demonstration (10 pts)
 
-### 1A. Web Application UI/UX — 5/6
+### 1A. Web Application UI/UX — 5.5/6
 
 **What's implemented:**
 - Streamlit multi-page app: Home (single predict), `1_Batch_Predict`, `2_Pipeline_Status`.
-- Single prediction page has a text input, Classify button, confidence bar chart, and 6 example transaction buttons.
-- Batch prediction supports CSV upload (with column validation) and paste-in mode; includes download of results CSV and category distribution bar chart.
-- Pipeline Status page shows health of 4 services (Backend, MLflow, Airflow, Grafana) with live Prometheus metrics refresh and direct links to all tool UIs.
-- Sidebar includes MLflow model selection by run ID with F1 score and timestamp display.
-- User manual (`docs/user_manual.md`) is comprehensive, targeted at non-technical users with troubleshooting table and category guide.
+- Home page: text input, Classify button, 6 example buttons that pre-fill the input, confidence bar chart with `st.caption()` explaining softmax probability and low/high confidence thresholds, full score distribution across all 10 categories, post-prediction feedback form (calls `POST /feedback`).
+- Batch prediction: three tabs — CSV upload (with column validation), paste descriptions, HDFC bank statement XLS upload (auto-detects header row, filters withdrawal transactions). Results table with category and confidence, Altair donut chart of category distribution, CSV download button.
+- Pipeline Status page: live health grid for all 7 external services, live Prometheus metric counters with refresh, DVC pipeline DAG rendered via Graphviz (with ASCII fallback), direct links to all tool UIs.
+- Sidebar: model readiness indicator, current MLflow run ID, model selection dropdown for hot-swap (calls `POST /models/switch`).
+- User manual (`docs/user_manual.md`) covers all features in non-technical language.
 
 **Strengths:**
-- Loose coupling strictly enforced — Streamlit communicates only via configurable `BACKEND_URL` REST calls.
-- Non-technical usability is strong: example buttons, troubleshooting guidance, category icons, confidence threshold hints.
-- Responsive to model load failures (shows error, not crash).
+- Loose coupling: Streamlit communicates exclusively via configurable `BACKEND_URL` REST calls — no shared code with backend.
+- Non-technical accessibility: example buttons, `st.caption()` confidence explainer, category guide in user manual.
+- Responsive to failures: model load error shown clearly, API errors surface as `st.error()` rather than crashes.
+- HDFC XLS tab is a practical real-world feature that goes beyond rubric requirements.
 
 **Gaps:**
-- No explicit UI responsiveness for mobile/narrow viewports (Streamlit limitation, but no custom CSS mitigation).
-- ~~UI could benefit from a brief inline "what is this?" tooltip or explainer for the confidence bar chart to maximise non-technical accessibility.~~ ✅ **Fixed** — `st.caption()` added below confidence metric explaining softmax probability and high/low confidence thresholds (`frontend/Home.py`).
+- No mobile/responsive layout (Streamlit architectural constraint — defensible, documented in `docs/assessment.md §8`).
+- Feedback form appears only after a prediction is made — new users may not discover it without guidance.
 
 ---
 
 ### 1B. ML Pipeline Visualization — 3.5/4
 
 **What's implemented:**
-- `2_Pipeline_Status` page serves as the pipeline management console: shows service health, live Prometheus metric counters, and links to MLflow, Airflow, and Grafana.
-- Airflow UI (port 8080) provides full DAG graph view of the 6-task ingestion pipeline with per-task logs.
-- MLflow UI (port 5000) shows all experiment runs, per-epoch metrics curves, hyperparameters, and artifacts.
-- Grafana dashboard (port 3001) provides NRT panels: Request Rate, P95 Latency, Error Rate gauge, Predictions by Category.
-- `docs/ci_run_20260423.md` is a CI run report with per-job and per-step pass/fail status.
-- `docs/screencast.md` serves as a structured demo guide tying all tools together.
+- `2_Pipeline_Status` is the pipeline management console: service health grid, live metric counters, DVC DAG diagram, links to all tools.
+- Airflow UI (port 8080): full 9-task DAG graph view with per-task logs, run history, and task duration timeline.
+- MLflow UI (port 5000): all experiment runs, per-epoch metric curves, hyperparameters, artifacts including confusion matrix heatmap PNG.
+- Grafana dashboard (port 3001): 17 panels covering request rates, latency percentiles, model state, feedback, drift, Airflow pipeline metrics, and model management.
+- GitHub Actions run page: per-step pass/fail and timing for all 3 CI jobs.
 
 **Gaps:**
-- The `2_Pipeline_Status` page does not embed or visualise the DVC DAG graph inline — users must navigate to the Airflow or MLflow UI for full pipeline visibility. A `dvc dag` rendered image or mermaid diagram on this page would close the gap.
-- No error/failure history console within the Streamlit UI itself (relies on external tool UIs).
+- No error/failure history console within Streamlit itself — relies on Airflow UI and GitHub Actions for failure investigation.
+- Pipeline visualization speed is limited by Airflow DAG trigger + `dvc dag` subprocess latency (sub-second for `dvc dag`, ~1s for Airflow health check). Acceptable.
 
 ---
 
@@ -72,39 +71,40 @@
 ### 2A. Design Principles — 2/2
 
 **Fully compliant:**
-- Architecture diagram: `docs/architecture.md` — clear ASCII diagram with all 5 layers.
-- HLD: `docs/hld.md` — component breakdown, data flow, CI/CD design, ML model spec, security considerations.
-- LLD: `docs/lld.md` — all API endpoints with request/response JSON schemas, field constraints, error codes, module function signatures, data models, exception handling table, logging standards.
-- Loose coupling: Frontend never imports backend code; communicates exclusively via REST calls to configurable `BACKEND_URL`.
-- OO paradigm: `SpendSensePredictor` class, `BiLSTMClassifier` nn.Module, Pydantic schema classes.
+- Architecture diagram: `docs/architecture.md` — layered ASCII diagram covering all 5 system layers.
+- HLD: `docs/hld.md` — component breakdown, data flow, CI/CD design, ML model spec, security trade-offs, Grafana port 3001.
+- LLD: `docs/lld.md` — all 9 API endpoints with request/response JSON schemas, field constraints, error codes, module function signatures, data models, exception handling table, logging standards.
+- Loose coupling strictly enforced: frontend never imports backend code; communicates exclusively via REST calls to `BACKEND_URL`.
+- OO paradigm: `SpendSensePredictor` class, `BiLSTMClassifier` nn.Module, Pydantic schema classes for all endpoint I/O.
 
 ---
 
-### 2B. Implementation — 2/2
+### 2B. Implementation — 1.5/2
 
 **What's implemented:**
-- PEP8 / flake8 enforced (max-line-length 100, W503 suppressed, CI gate passes with 0 issues).
-- `logging` module used uniformly across all source files (`INFO` level, consistent format).
-- Exception handling: per-layer exception strategy documented in LLD and implemented — `FileNotFoundError`/`ValueError` → `sys.exit(1)` in pipeline scripts; `RuntimeError` → HTTP 503, general `Exception` → HTTP 500 in FastAPI; `requests.ConnectionError` handled in Streamlit.
-- Inline docstrings: all public functions have Google-style docstrings with Args/Returns/Raises.
-- Pydantic schemas (`schemas.py`) enforce type validation on all API inputs.
+- PEP8/flake8 enforced (max-line-length 100, CI gate passes with 0 issues).
+- `logging` module used throughout all source files with consistent format string.
+- Exception handling: `FileNotFoundError`/`ValueError` → `sys.exit(1)` in pipeline scripts; `RuntimeError` → HTTP 503, `Exception` → HTTP 500 in FastAPI; `requests.ConnectionError` handled in Streamlit.
+- Google-style docstrings on all public functions with Args/Returns/Raises.
+- Pydantic schemas enforce type and length validation on all API inputs.
+- Dynamic INT8 quantization (`torch.quantization.quantize_dynamic`) applied to LSTM + Linear layers in `predictor.py` on CPU — reduces model memory ~4×.
+- Confusion matrix heatmap PNG logged as MLflow artifact via `mlflow.log_artifact`.
 
 **Gaps:**
-- ~~`backend/app/predictor.py` code coverage is only 24% (per CI report). The MLflow model loading path (`load_from_mlflow`) is untested.~~ ✅ **Fixed** — 5 new tests added in `tests/test_api.py`: 3 for `list_mlflow_runs` (normal, no-experiment, exception) and 2 for `load_from_mlflow` (failure returns False, model remains None). Total tests: **67**.
-- `src/models/train.py` and `src/models/evaluate.py` are explicitly excluded from coverage in `setup.cfg`. Rationale is defensible (they require DVC artifacts to run) but inline training/evaluation logic is not unit-tested.
-- `MLproject` still references an obsolete `generate` entry point pointing to `src/data/generate_synthetic.py` which is no longer part of the DVC pipeline.
-- ~~No model quantization or pruning implemented (required by guidelines for no-cloud/on-prem resource optimization).~~ ✅ **Fixed** — `torch.quantization.quantize_dynamic()` applied to LSTM and Linear layers (INT8) in both `load()` and `load_from_mlflow()` in `predictor.py`, active whenever `device.type == "cpu"`. Reduces model memory footprint ~4× on CPU; GPU path unchanged.
+- **`MLproject` stale `generate` entry point** — references `src/data/generate_synthetic.py` which no longer exists in the codebase. Running `mlflow run . -e generate` would fail. Remove this entry point before demo.
+- `src/models/train.py` and `src/models/evaluate.py` are excluded from coverage in `setup.cfg` — defensible (require full DVC artefacts to run) but these are the most complex modules in the project and are untested at the unit level.
+- Inline comments are sparse — complex logic in `task_check_drift`, `_process_hdfc_xls`, and `create_split` is not commented.
 
 ---
 
 ### 2C. Testing — 1/1
 
 **Fully compliant:**
-- Test plan: `docs/test_plan.md` — acceptance criteria table (F1 ≥ 0.70, latency < 200ms, coverage ≥ 60%), 35 enumerated test cases (TC01–TC35), pass/fail status for each, test report summary.
-- 5 test modules covering ingest, preprocess, model, API, and Airflow DAG.
-- CI enforces coverage threshold (≥ 60%; current: 66.3%).
-- All 52 unit tests pass in CI (52/52); **67/67 pass locally** after post-assessment additions.
-- Acceptance criteria formally defined and verified in CI (F1 gate: `sys.exit(1)` if F1 < 0.70).
+- Test plan: `docs/test_plan.md` — acceptance criteria (F1 ≥ 0.70, latency < 200ms, coverage ≥ 60%), test cases, pass/fail status.
+- 5 test modules: `test_ingest.py`, `test_preprocess.py`, `test_model.py`, `test_api.py`, `test_airflow_dag.py`.
+- 67 unit tests; all pass in CI (run 24928575305).
+- Coverage: 66.3% (above 60% gate). CI enforces this threshold.
+- Acceptance criteria formally verified: F1 gate via `sys.exit(1)` in `evaluate.py`; CI gate via `pytest --cov-fail-under=60`.
 
 ---
 
@@ -113,100 +113,88 @@
 ### 3A. Data Engineering — 2/2
 
 **What's implemented:**
-- Apache Airflow DAG (`airflow/dags/ingestion_dag.py`) with 6 tasks:  
-  `verify_raw_data → validate_schema → check_nulls → check_drift → run_ingest → trigger_dvc`
-- Runs on `@daily` schedule; also triggerable manually and via GitHub Actions `workflow_dispatch`.
-- Drift detection compares current category distribution to `baseline_stats.json` using chi-squared test; triggers DVC repro on drift.
-- Schema validation, null check, and deduplication implemented in `src/data/ingest.py`.
-- Baseline statistics (row count, category distribution, average description length) saved to `data/ingested/baseline_stats.json`.
+- Apache Airflow DAG (`airflow/dags/ingestion_dag.py`) — `spendsense_ingestion_pipeline`, 9 tasks:  
+  `verify_raw_data → validate_schema → check_nulls → check_drift → route_on_drift → [combine_data → run_ingest → trigger_dvc] / [pipeline_complete]`
+- `route_on_drift` is a `BranchPythonOperator`: routes to `combine_data` on drift, directly to `pipeline_complete` on no drift.
+- `pipeline_complete` has `trigger_rule="none_failed_min_one_success"` — fires regardless of which branch was taken.
+- Runs on `@daily` schedule; triggerable manually via Airflow UI or GitHub Actions `workflow_dispatch`.
+- Drift detection: compares `transactions_drift.csv` category distribution vs. `baseline_stats.json` using per-category absolute shift (> 10 pp threshold). Flags categories with significant shift.
+- When drift detected: `combine_data` merges 90% baseline + 10% drift file + `feedback.jsonl` corrections into combined `transactions.csv`. `run_ingest` validates and saves. `trigger_dvc` dispatches GitHub Actions to retrain (skipped with `GITHUB_ACTIONS=true` guard in CI).
+- All tasks push pipeline metrics to Prometheus Pushgateway.
+- `POST /feedback` endpoint logs ground-truth corrections to `feedback/feedback.jsonl` (timestamp, description, predicted, actual, correct flag).
+- `GET /drift` endpoint reads feedback log, computes actual category distribution, compares vs `feature_baseline.json`, returns drift flags per category.
 
 **Gaps:**
-- No Apache Spark or Ray usage — Airflow is the only data engineering tool. The guidelines list Spark/Ray as options alongside Airflow; Airflow alone is acceptable but Spark-based distributed preprocessing would strengthen this area.
-- ~~Drift detection is implemented only in the Airflow DAG; drift comparison against baseline not wired up in the backend.~~ ✅ **Fixed** — `GET /drift` endpoint added to `backend/app/main.py`. Reads `feedback/feedback.jsonl` for `actual_category` distribution, loads `data/processed/feature_baseline.json` (label index → category via label_encoder), computes per-category shift, flags any category shifted > 10pp. Returns `status`, `drift_flags`, `feedback_samples`, and both distributions.
-- ~~The feedback loop for ground truth label collection (as required by Application Guidelines §E) is not implemented — no mechanism exists to log real-world labels for production performance decay tracking.~~ ✅ **Fixed** — `POST /feedback` endpoint added to `backend/app/main.py`. Accepts `description`, `predicted_category`, `actual_category`, optional `transaction_id`; appends JSON lines to `feedback/feedback.jsonl` with timestamp and correctness flag. Pydantic schemas in `schemas.py`; 4 tests in `test_api.py`.
+- No Apache Spark or Ray — Airflow alone satisfies the guidelines' "or" condition. Defensible at scale.
+- Drift detection uses simple absolute shift (10 pp threshold), not a formal statistical test (chi-squared or KS test). Functionally sufficient for the dataset but less rigorous.
 
 ---
 
 ### 3B. Source Control & CI — 2/2
 
 **Fully compliant:**
-- Git used for all code; DVC tracks `data/raw/`, `data/ingested/`, `data/processed/`, `models/`, `metrics/`.
-- `dvc.yaml` defines the full 4-stage DAG: `ingest → preprocess → train → evaluate`.
-- `dvc.lock` is up to date (regenerated 2026-04-23 post HF dataset migration).
-- GitHub Actions CI (`.github/workflows/ci.yml`) 3-job pipeline:
-  - **Job 1 (test):** flake8 lint + pytest with coverage gate.
-  - **Job 2 (ml-pipeline):** `dvc repro`, infra services start, MLflow/Prometheus/Grafana/Airflow smoke tests.
-  - **Job 3 (app):** Backend + Streamlit build, endpoint smoke tests.
-- Self-hosted runner — no cloud compute used.
-- Artifacts passed between jobs via `actions/upload-artifact`.
-- Every experiment is reproducible via Git commit hash + MLflow run ID (enforced by MLflow auto-logging in `train.py`).
+- Git for all code. DVC tracks `data/raw/`, `data/ingested/`, `data/processed/`, `models/`, `metrics/`.
+- `dvc.yaml`: 4-stage DAG (`ingest → preprocess → train → evaluate`) with explicit deps, params, outs, metrics.
+- `dvc.lock`: up to date and committed; pins all input/output hashes for full reproducibility.
+- GitHub Actions CI: 3-job BAT pipeline (see `docs/ci_cd_pipeline.md` for full detail).
+  - **Job 1:** flake8 + pytest + coverage gate.
+  - **Job 2:** 90-10 drift split → infra services → DVC Run 1 (90% data) → F1 gate → Airflow → DVC Run 2 (fine-tune) → metrics persist.
+  - **Job 3:** artifact download → backend+frontend Docker smoke tests.
+- Self-hosted runner — no cloud compute.
+- Every experiment reproducible via Git commit hash + MLflow run ID (enforced by MLflow auto-logging).
 
 ---
 
 ### 3C. Experiment Tracking — 2/2
 
 **What's implemented:**
-- MLflow experiment: `SpendSense`, run name: `bilstm_training`.
-- **Parameters logged:** embed_dim, hidden_dim, num_layers, dropout, batch_size, learning_rate, epochs, vocab_size, num_classes, seed.
-- **Metrics logged per epoch:** train_loss, val_loss, train_f1_macro, val_f1_macro (with step).
-- **Final metrics:** test_accuracy, test_f1_macro, best_val_f1_macro.
-- **Per-class F1** logged for all 10 categories.
-- **Artifacts:** model checkpoint, vocab.pkl, label_encoder.pkl, params.yaml.
-- Training duration and val F1 pushed to Prometheus Pushgateway (job: `spendsense_training`).
-- Evaluate stage pushes test_f1_macro and test_accuracy to Pushgateway (job: `spendsense_evaluate`).
-- `MLproject` file present with all entry points defined; `python_env.yaml` and `conda.yaml` present for environment parity.
-- MLflow model registry workflow documented: `None → Staging → Production`.
+- MLflow experiment: `SpendSense`. Two run types: `bilstm_training` (Run 1) and `bilstm_finetune` (Run 2).
+- **Parameters logged (10):** `embed_dim`, `hidden_dim`, `num_layers`, `dropout`, `batch_size`, `learning_rate`, `epochs`, `vocab_size`, `num_classes`, `seed`.
+- **Metrics per epoch:** `train_loss`, `val_loss`, `train_f1_macro`, `val_f1_macro` (with step index).
+- **Final metrics:** `test_accuracy`, `test_f1_macro`, `test_f1_weighted`, `best_val_f1_macro`.
+- **Per-class F1** logged for all 10 categories individually (beyond autolog).
+- **Artifacts:** model checkpoint (`.pt`), `vocab.pkl`, `label_encoder.pkl`, `params.yaml`, confusion matrix JSON, confusion matrix heatmap PNG.
+- Training duration and val F1 pushed to Prometheus Pushgateway (job: `spendsense_training`). Evaluation metrics pushed post-evaluate (job: `spendsense_evaluate`).
+- `MLproject` present with all 4 entry points; `python_env.yaml` pins training dependencies.
+- Model registry auto-promotes new version to `Staging` via `MlflowClient.transition_model_version_stage()` after each training run.
 
 **Gaps:**
-- ~~Model registry promotion to Staging/Production is documented but not automated in CI — no script or step transitions the registered model version programmatically after a passing CI run.~~ ✅ **Fixed** — `src/models/train.py` now auto-promotes the newly registered model version to `Staging` using `MlflowClient.transition_model_version_stage()` immediately after `mlflow.pytorch.log_model()`. Exception-safe (logs warning, does not fail training).
-- `MLproject` `generate` entry point references the removed `generate_synthetic.py` script — stale entry point.
-- Beyond Autolog: custom per-class F1 logging is correctly implemented. However, confusion matrix is only written to `eval_metrics.json`, not logged to MLflow as an artifact/figure.
+- `MLproject` `generate` entry point is stale (references `src/data/generate_synthetic.py` which was removed). Remove before demo.
+- The `main` entry point in `MLproject` uses default hyperparameter values that differ from `params.yaml` (e.g., `dropout: 0.3` in MLproject vs `0.75` in params.yaml). Running `mlflow run .` would use different hyperparameters than `dvc repro`. Should sync or remove custom defaults.
 
 ---
 
-### 3D. Prometheus + Grafana (Exporter Instrumentation & Visualization) — 1.75/2
+### 3D. Prometheus + Grafana — 1.75/2
 
 **What's implemented:**
-- FastAPI backend exposes `/metrics` endpoint in Prometheus exposition format.
-- 6 metrics instrumented in `backend/app/monitoring.py`:
-  - `spendsense_requests_total` (Counter, labels: endpoint, status)
-  - `spendsense_request_latency_seconds` (Histogram, 8 buckets)
-  - `spendsense_error_rate` (Gauge, rolling 100-request window)
-  - `spendsense_predictions_by_category_total` (Counter, label: category)
-  - `spendsense_model_loaded` (Gauge)
-  - `spendsense_batch_size` (Histogram)
-- Pushgateway receives training metrics: `spendsense_training_val_f1`, `spendsense_training_duration_seconds`, `spendsense_test_f1_macro`, `spendsense_test_accuracy`.
-- Prometheus scrapes backend every 10s and Pushgateway with `honor_labels: true`.
-- 5 alert rules defined in `monitoring/alert_rules.yml`:
-  - `HighErrorRate` (> 5%, 2min window) — satisfies rubric requirement exactly.
-  - `ModelNotLoaded` (critical, 1min).
-  - `HighPredictionLatency` (P95 > 500ms, 5min).
-  - `LowTestF1` (< 0.70, immediate).
-  - `LowValF1` (< 0.65).
+- FastAPI: 6 metrics via `backend/app/monitoring.py` — `requests_total`, `request_latency_seconds`, `error_rate`, `predictions_by_category_total`, `model_loaded`, `batch_size`, plus `feedback_total`, `drift_score`, `model_switches_total`.
+- Pushgateway receives metrics from: training pipeline, evaluation pipeline, Airflow DAG, and Streamlit frontend.
+- All 5 system components instrumented (backend, training, evaluation, Airflow, Streamlit).
+- Prometheus scrapes backend every 10s; Pushgateway with `honor_labels: true`.
+- **10 alert rules** in `monitoring/alert_rules.yml` across 4 groups: inference, training, pipeline, traffic. Includes `HighErrorRate > 5%` (rubric requirement), `DataDriftDetected`, `ModelNotLoaded`, `FeedbackLoopDead`.
 - Alertmanager configured with Gmail SMTP routing (password via env var, not hardcoded).
-- Grafana dashboard provisioned: Request Rate, P95 Latency, Error Rate, Predictions by Category panels.
+- Grafana dashboard provisioned with 17 panels (auto-provisioned from JSON at startup).
 
 **Gaps:**
-- ~~Grafana port in HLD (`docs/hld.md`) is listed as 3000, but docker-compose maps it to 3001. Minor documentation inconsistency.~~ ✅ **Already correct** — `docs/hld.md` already lists Grafana on port 3001 in the current codebase.
-- ~~Pushgateway metrics only populate during CI runs — not noted in the screencast.~~ ✅ **Fixed** — note added to `docs/screencast.md` Step 6, explaining which metrics populate when and how to populate `spendsense_ui_*` metrics live during the demo.
-- ~~No frontend or Airflow instrumentation — only the FastAPI backend is instrumented.~~ ✅ **Fixed** — `frontend/monitoring.py` added; `Home.py` and `1_Batch_Predict.py` push `spendsense_ui_predictions_total`, `spendsense_ui_errors_total`, `spendsense_ui_batch_items_total` to Pushgateway (job: `spendsense_ui`). Airflow DAG pushes `spendsense_pipeline_drift_detected`, `spendsense_pipeline_rows_ingested`, `spendsense_pipeline_ingest_success`, `spendsense_pipeline_dvc_triggered` (job: `spendsense_pipeline`). `prometheus-client` added to `frontend/requirements.txt` and `airflow/requirements.txt`.
+- Grafana `prometheus.yml` has a `grafana` scrape job pointing to `grafana:3000` (the internal Docker port) — this is correct for inter-container communication but may confuse during demo since the host port is 3001.
+- Pushgateway metrics for training and evaluation only populate during CI runs, not during local `docker compose up` without re-running the DVC pipeline. Noted in `docs/demo.md` — generate traffic with the provided curl commands before demo.
 
 ---
 
 ### 3E. Software Packaging — 3.5/4
 
 **What's implemented:**
-- **FastAPI backend:** Dockerized (`backend/Dockerfile`), serves all inference endpoints, `/health`, `/ready`, `/metrics`.
+- **FastAPI backend:** Dockerized (`backend/Dockerfile`), Python 3.13-slim. Serves all 9 inference endpoints.
 - **Streamlit frontend:** Dockerized (`frontend/Dockerfile`), separate service.
-- **docker-compose.yml:** 8 services — mlflow, backend, frontend, airflow, prometheus, grafana, alertmanager, pushgateway — with healthchecks, env vars, volume mounts, and inter-service dependencies.
-- **MLproject:** Present with `python_env.yaml` and `conda.yaml` defining reproducible environments.
-- **MLflow for APIification:** `predictor.py` supports `load_from_mlflow(run_id)` to swap the active model to any MLflow run's artifacts via the `/models/switch` endpoint.
-- Backend and frontend are strictly separate Docker services connected only via REST API.
+- **docker-compose.yml:** 8 services with healthchecks, env vars, volume mounts, inter-service dependencies. Backend depends on MLflow (healthy). Frontend depends on backend (healthy).
+- **MLproject:** Present with `python_env.yaml` defining reproducible environment.
+- **MLflow APIification:** `predictor.py`'s `load_from_mlflow(run_id)` downloads artefacts from the MLflow tracking server and loads the model for inference. Enables zero-downtime model hot-swap via `POST /models/switch`.
+- Backend and frontend are strictly separate Docker services connected only via REST API at configurable `BACKEND_URL`.
 
 **Gaps:**
-- `MLproject` `generate` entry point is stale (references removed script).
-- No Docker Swarm configuration despite the guidelines mentioning "Swarm mode, if applicable" — acceptable given it's noted as optional, but would add points.
-- ~~MLflow model is loaded from the artifact store but the `/models/switch` endpoint uses a plain `dict` request body (`request: dict`) rather than a typed Pydantic schema, which is inconsistent with the rest of the API.~~ ✅ **Already correct** — `/models/switch` already uses `SwitchModelRequest` Pydantic schema with `run_id` field validation (min_length=1) in the current codebase.
+- **`MLproject` stale `generate` entry point** (same as §2B gap — needs removal).
+- `MLproject` default hyperparameters (embed_dim=128, batch_size=64, epochs=20, dropout=0.3) do not match `params.yaml` (batch_size=512, epochs=1, dropout=0.75). `mlflow run .` would produce a different model than `dvc repro`. Sync the defaults or document the divergence.
+- No Docker Swarm configuration (guidelines say "if applicable" — single-node local deployment is acceptable for a prototype).
 
 ---
 
@@ -219,8 +207,8 @@
 | Low-Level Design (LLD) with API specs | ✅ Present | `docs/lld.md` |
 | Test plan + test cases | ✅ Present | `docs/test_plan.md` |
 | User manual (non-technical) | ✅ Present | `docs/user_manual.md` |
-
-All 5 required documentation artifacts are present and substantive. The LLD fully specifies all endpoint I/O, error codes, module function signatures, data models, exception handling strategy, and logging standards.
+| CI/CD pipeline description | ✅ Present | `docs/ci_cd_pipeline.md` |
+| E2E demo guide | ✅ Present | `docs/demo.md` |
 
 ---
 
@@ -229,58 +217,51 @@ All 5 required documentation artifacts are present and substantive. The LLD full
 | Principle | Status | Notes |
 |---|---|---|
 | Automation | ✅ | GitHub Actions + DVC automate full ML lifecycle |
-| Reproducibility | ✅ | Git commit + MLflow run ID tie every experiment |
-| CI (continuous integration) | ✅ | 3-job GitHub Actions pipeline, self-hosted runner |
-| Monitoring & Logging | ✅ | Prometheus + Grafana + structured logging throughout |
+| Reproducibility | ✅ | Git commit + MLflow run ID + `dvc.lock` tie every experiment |
+| Continuous Integration | ✅ | 3-job GitHub Actions BAT pipeline, self-hosted runner, F1 gate |
+| Monitoring & Logging | ✅ | All 5 components instrumented; 10 alert rules; structured logging throughout |
 | Version Control | ✅ | Git for code, DVC for data/models, MLflow for experiments |
-| Environment Parity | ✅ | Docker + docker-compose; MLproject + python_env.yaml |
-| No Cloud | ✅ | All services local; self-hosted runner |
-| Encryption at rest/transit | ⚠️ | No encryption implemented — dataset is public, local deployment; defensible |
-| Resource optimization (quantization/pruning) | ✅ | Dynamic INT8 quantization applied in `predictor.py` on CPU (LSTM + Linear layers) |
-| Feedback loop (ground truth logging) | ✅ | `POST /feedback` endpoint appends to `feedback/feedback.jsonl` |
+| Environment Parity | ✅ | Docker + docker-compose for production; `MLproject` + `python_env.yaml` for training |
+| No Cloud | ✅ | All services local; self-hosted runner on local GPU |
+| Encryption at rest/transit | ⚠️ | Dataset is public (no PII), deployment is localhost-only — defensible gap |
+| Resource optimization | ✅ | Dynamic INT8 quantization on LSTM + Linear layers (CPU path) in `predictor.py` |
+| Feedback loop (ground truth logging) | ✅ | `POST /feedback` appends to `feedback/feedback.jsonl`; `GET /drift` detects distribution shift |
 
 ---
 
-## Section 6 — Key Issues to Address Before Demo
+## Section 6 — Open Issues Before Demo
 
 ### Critical
-1. **`MLproject` stale entry point** — `generate` entry point references `src/data/generate_synthetic.py` which no longer exists. Remove it before demo to avoid confusion if `mlflow run` is invoked.
+1. **`MLproject` stale `generate` entry point** — `src/data/generate_synthetic.py` no longer exists. Remove the `generate` entry point from `MLproject` to avoid `mlflow run . -e generate` failure during demo.
+2. **`MLproject` hyperparameter mismatch** — Default values in `MLproject` (`batch_size=64`, `dropout=0.3`, `epochs=20`) differ from `params.yaml` (`batch_size=512`, `dropout=0.75`, `epochs=1`). Fix: either remove custom defaults from `MLproject` (so it reads from `params.yaml`) or update them to match.
 
-### Important (Resolved)
-2. ~~**Predictor coverage (24%)**~~ ✅ — 5 new tests cover `list_mlflow_runs` and `load_from_mlflow`; 67/67 pass.
-3. ~~**Grafana port in HLD**~~ ✅ — `docs/hld.md` already has port 3001; no change needed.
-4. ~~**Feedback loop absent**~~ ✅ — `POST /feedback` endpoint implemented in `backend/app/main.py`, writing to `feedback/feedback.jsonl`.
-5. ~~**Model registry not automated**~~ ✅ — `src/models/train.py` now auto-promotes new model version to `Staging` via `MlflowClient`.
-
-### Minor (Resolved)
-6. ~~**`/models/switch` untyped request body**~~ ✅ — Already uses `SwitchModelRequest` Pydantic schema.
-7. ~~**Confusion matrix not in MLflow**~~ ✅ — Already logged via `mlflow.log_dict` in `evaluate.py`.
-
-### Still Open (Defensible in Viva)
-8. ~~**DVC pipeline visualization absent from Streamlit**~~ ✅ — Already implemented in `2_Pipeline_Status.py` (lines 134–172): live `dvc dag` subprocess + ASCII fallback always displayed.
+### Minor
+3. Grafana `prometheus.yml` scrape job for grafana uses `grafana:3000` — correct for Docker networking but worth noting during demo so evaluators don't confuse with host port 3001.
+4. `feedback/feedback.jsonl` on the runner contains test entries from CI runs — reset or filter before demo if a clean feedback log is desired for the `/drift` demo.
 
 ---
 
-## Section 8 — Defensible Gaps (Viva Answers)
-
-These gaps remain but have strong justifications. Prepare these answers.
+## Section 7 — Defensible Gaps (Viva Answers)
 
 | Gap | Viva Answer |
 |---|---|
-| No Apache Spark / Ray | Dataset is 1.4M rows, fits in pandas on a single machine. Airflow satisfies the "or" condition explicitly listed in the guidelines. Spark would add operational complexity for no practical gain at this scale. |
-| No Docker Swarm | Guidelines state "if applicable". Single-node local deployment with docker-compose is appropriate for a prototype; Swarm adds HA/multi-node capabilities only needed in production. |
-| No encryption at rest/transit | The dataset is publicly available on HuggingFace — no PII. The deployment is localhost-only. In production, TLS termination would be added at a reverse proxy (nginx) layer without changing application code. |
-| train.py / evaluate.py excluded from coverage | These scripts require the full DVC pipeline (1.4M-row dataset, 10+ minute training run) to execute. Mocking the training loop would test the mock, not the logic. The coverage gate (≥ 60%) is met; these files are explicitly excluded with documented rationale in `setup.cfg`. |
-| Mobile responsiveness | Streamlit's layout engine uses fixed-width containers with no responsive breakpoint API. Custom CSS injection exists (`st.markdown` with unsafe_allow_html) but Streamlit re-renders the full page on every interaction, making CSS state management unreliable. This is a known Streamlit architectural constraint. |
+| No Apache Spark / Ray | Dataset is 4.5M rows and fits in pandas on a single machine. The guidelines list Spark/Ray as options alongside Airflow — Airflow satisfies the "or" condition. Spark would add significant operational complexity (cluster setup, YARN/Spark configuration) for no practical gain at this scale |
+| No Docker Swarm | Guidelines state "if applicable". Single-node local deployment with docker-compose is the correct architecture for a prototype without multi-node HA requirements |
+| No encryption | Dataset is publicly available on HuggingFace — no PII. All services communicate on a private Docker bridge network. In production, TLS termination would be added at an nginx reverse proxy layer without any application code changes |
+| `train.py`/`evaluate.py` excluded from coverage | These scripts require the full DVC pipeline artifacts (4.5M row dataset, 10+ minute training run) to execute meaningfully. Mocking the training loop would test the mock, not the model logic. The 60% coverage gate is met with the remaining testable code |
+| Mobile responsiveness | Streamlit uses fixed-width containers with no responsive breakpoint API. CSS injection via `st.markdown(unsafe_allow_html=True)` is possible but unreliable due to Streamlit's full-page re-render model |
+| Drift detection uses 10 pp threshold, not chi-squared | Simple absolute shift is interpretable and matches the Airflow DAG documentation. A chi-squared test would require a minimum sample size assumption and would add complexity without improving the demo narrative |
 
 ---
 
-## Section 7 — Strengths to Highlight in Demo
+## Section 8 — Strengths to Highlight in Demo
 
-- **Real dataset, real metrics** — 1.4M HuggingFace transactions, 98.72% F1 (not synthetic data).
-- **Alert rules that match the rubric exactly** — `HighErrorRate > 5%` is explicitly configured in `alert_rules.yml`.
-- **Complete documentation suite** — All 5 required documents present with full detail.
-- **CI run report available** — `docs/ci_run_20260423.md` is a real CI artefact showing all 52 tests passing.
-- **Per-class Prometheus metrics** — Training and evaluation metrics are pushed to Pushgateway with named labels, going beyond basic autolog.
-- **Model hot-swap at runtime** — `/models/switch` endpoint allows swapping the live model to any MLflow run without restarting the container.
-- **Early stopping + F1 gate** — Both model quality controls (validation early stopping + CI F1 threshold) are in place.
+- **Real dataset, real metrics** — 4.5M HuggingFace transactions, 98.72% F1. Not synthetic.
+- **Two-run DVC pipeline in CI** — Demonstrates the full drift detection + retraining loop end-to-end in a single CI run.
+- **Alert rules matching rubric exactly** — `HighErrorRate > 5%` and `DataDriftDetected` are explicitly configured in `alert_rules.yml`.
+- **Complete documentation suite** — All 5 required documents present plus `ci_cd_pipeline.md` and `demo.md`.
+- **All 5 components instrumented** — Backend, training, evaluation, Airflow pipeline, and Streamlit frontend all push metrics.
+- **Zero-downtime model hot-swap** — `/models/switch` loads any MLflow run's model without container restart.
+- **Dynamic quantization** — INT8 quantization on CPU path reduces inference memory footprint ~4×.
+- **9 Pydantic-validated endpoints** — Consistent schema enforcement with clear error codes across all API endpoints.
+- **67 unit tests, 66.3% coverage** — Above the 60% CI gate; covering ingest, preprocess, model, API, and Airflow DAG modules.
