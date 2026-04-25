@@ -11,9 +11,6 @@ import os
 import pickle
 import sys
 
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import mlflow
 import numpy as np
 import torch
@@ -141,7 +138,10 @@ def evaluate(processed_dir: str, params: dict) -> dict:
 
         # Log confusion matrix as a heatmap PNG
         try:
-            import tempfile
+            import tempfile  # noqa: PLC0415
+            import matplotlib  # noqa: PLC0415
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt  # noqa: PLC0415
             cm_array = np.array(cm)
             fig, ax = plt.subplots(figsize=(12, 10))
             im = ax.imshow(cm_array, interpolation="nearest", cmap="Blues")
