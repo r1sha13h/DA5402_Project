@@ -79,7 +79,7 @@ def task_verify_raw_data(**context):
         )
     size_mb = os.path.getsize(path) / (1024 * 1024)
     logger.info("Data found at %s — %.1f MB.", path, size_mb)
-    return {"path": path, "size_mb": round(size_mb, 1)}
+    return {"exists": True, "path": path, "size_mb": round(size_mb, 1)}
 
 
 def task_validate_schema(**context):
@@ -231,6 +231,14 @@ def task_trigger_dvc(**context):
     In a CI context (GITHUB_ACTIONS=true) the runner handles the second DVC
     repro directly, so we skip the dispatch and just mark completion.
     """
+    ti = context.get("ti")
+    drift_result = ti.xcom_pull(task_ids="check_drift") if ti else None
+    drift_detected = drift_result.get("drift_detected", False) if drift_result else False
+
+    if not drift_detected:
+        logger.info("No drift detected — skipping GitHub Actions trigger.")
+        return {"skipped": True}
+
     # Running inside GitHub Actions — CI runner drives the second dvc repro
     if os.environ.get("GITHUB_ACTIONS") == "true":
         logger.info("CI context detected — skipping GitHub dispatch; runner will run dvc repro.")
