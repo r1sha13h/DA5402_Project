@@ -11,6 +11,9 @@ import os
 import pickle
 import sys
 
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 import mlflow
 import numpy as np
 import torch
@@ -135,6 +138,35 @@ def evaluate(processed_dir: str, params: dict) -> dict:
             {"classes": label_encoder.classes_.tolist(), "matrix": cm},
             "confusion_matrix.json",
         )
+
+        # Log confusion matrix as a heatmap PNG
+        try:
+            import tempfile
+            cm_array = np.array(cm)
+            fig, ax = plt.subplots(figsize=(12, 10))
+            im = ax.imshow(cm_array, interpolation="nearest", cmap="Blues")
+            plt.colorbar(im, ax=ax)
+            ax.set_xticks(range(len(label_encoder.classes_)))
+            ax.set_yticks(range(len(label_encoder.classes_)))
+            ax.set_xticklabels(label_encoder.classes_, rotation=45, ha="right", fontsize=9)
+            ax.set_yticklabels(label_encoder.classes_, fontsize=9)
+            ax.set_xlabel("Predicted Label", fontsize=11)
+            ax.set_ylabel("True Label", fontsize=11)
+            ax.set_title("Confusion Matrix", fontsize=13)
+            thresh = cm_array.max() / 2.0
+            for i in range(cm_array.shape[0]):
+                for j in range(cm_array.shape[1]):
+                    ax.text(j, i, str(cm_array[i, j]),
+                            ha="center", va="center", fontsize=7,
+                            color="white" if cm_array[i, j] > thresh else "black")
+            plt.tight_layout()
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+                fig.savefig(tmp.name, dpi=120, bbox_inches="tight")
+                mlflow.log_artifact(tmp.name, artifact_path="confusion_matrix")
+            plt.close(fig)
+            logger.info("Confusion matrix heatmap logged to MLflow.")
+        except Exception as exc:
+            logger.warning("Could not log confusion matrix heatmap: %s", exc)
 
     # Push evaluation metrics to Prometheus Pushgateway
     pushgateway_url = os.environ.get("PUSHGATEWAY_URL", "http://localhost:9091")

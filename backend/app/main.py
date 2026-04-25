@@ -23,7 +23,10 @@ from starlette.responses import Response
 
 from backend.app.monitoring import (
     BATCH_SIZE,
+    DRIFT_SCORE,
+    FEEDBACK_TOTAL,
     MODEL_LOADED,
+    MODEL_SWITCHES,
     PREDICTION_CATEGORY,
     REQUEST_COUNT,
     REQUEST_LATENCY,
@@ -205,6 +208,7 @@ def switch_model(request: SwitchModelRequest):
     success = predictor.load_from_mlflow(run_id)
     if success:
         MODEL_LOADED.set(1)
+        MODEL_SWITCHES.inc()
         return {"status": "ok", "run_id": run_id, "message": "Model switched successfully."}
     raise HTTPException(
         status_code=500,
@@ -234,6 +238,7 @@ def feedback(request: FeedbackRequest) -> FeedbackResponse:
     with open(_FEEDBACK_LOG, "a") as fh:
         fh.write(json.dumps(entry) + "\n")
     REQUEST_COUNT.labels(endpoint="/feedback", status="200").inc()
+    FEEDBACK_TOTAL.inc()
     logger.info(
         "Feedback recorded: predicted=%s actual=%s correct=%s",
         request.predicted_category, request.actual_category, entry["correct"],
@@ -287,7 +292,15 @@ def drift_check():
                 if cat:
                     counts[cat] += 1
 
-    total_feedback = sum(counts.values()) or 1
+    total_feedback = sum(counts.values())
+    if total_feedback < 100:
+        return {
+            "status": "insufficient_data",
+            "message": f"Need at least 100 feedback samples to detect drift (have {total_feedback}).",
+            "feedback_samples": total_feedback,
+            "baseline_distribution": {k: round(v, 4) for k, v in baseline_norm.items()},
+        }
+
     feedback_norm = {cat: count / total_feedback for cat, count in counts.items()}
 
     drift_flags = {}
@@ -302,6 +315,8 @@ def drift_check():
                 "shift": round(shift, 4),
             }
 
+    max_shift = max((v["shift"] for v in drift_flags.values()), default=0.0)
+    DRIFT_SCORE.set(max_shift)
     return {
         "status": "drift_detected" if drift_flags else "ok",
         "drift_flags": drift_flags,
