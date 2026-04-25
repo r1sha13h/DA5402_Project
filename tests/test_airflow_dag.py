@@ -42,6 +42,7 @@ class _PythonOperator:  # noqa: D101
 
 airflow_stub.DAG = _DAG
 airflow_python_stub.PythonOperator = _PythonOperator
+airflow_python_stub.BranchPythonOperator = _PythonOperator  # same duck-type interface
 
 sys.modules.setdefault("airflow", airflow_stub)
 sys.modules.setdefault("airflow.models", airflow_dag_stub)
@@ -218,13 +219,15 @@ class TestTaskTriggerDvc(unittest.TestCase):
         result = dag_module.task_trigger_dvc(**ctx)
         self.assertTrue(result.get("skipped"))
 
-    @patch.dict(os.environ, {"GITHUB_PAT": "", "GITHUB_REPO": "owner/repo"})
+    @patch.dict(os.environ, {"GITHUB_PAT": "", "GITHUB_REPO": "owner/repo",
+                             "GITHUB_ACTIONS": ""})
     def test_skips_when_no_pat(self):
         ctx = _make_context(xcom_data={"drift_detected": True})
         result = dag_module.task_trigger_dvc(**ctx)
         self.assertTrue(result.get("skipped"))
 
-    @patch.dict(os.environ, {"GITHUB_PAT": "ghp_test", "GITHUB_REPO": "owner/repo"})
+    @patch.dict(os.environ, {"GITHUB_PAT": "ghp_test", "GITHUB_REPO": "owner/repo",
+                             "GITHUB_ACTIONS": ""})
     def test_triggers_github_actions_on_drift(self):
         mock_response = MagicMock()
         mock_response.status_code = 204
@@ -241,7 +244,8 @@ class TestTaskTriggerDvc(unittest.TestCase):
         self.assertTrue(result.get("triggered"))
         self.assertEqual(result["status_code"], 204)
 
-    @patch.dict(os.environ, {"GITHUB_PAT": "ghp_test", "GITHUB_REPO": "owner/repo"})
+    @patch.dict(os.environ, {"GITHUB_PAT": "ghp_test", "GITHUB_REPO": "owner/repo",
+                             "GITHUB_ACTIONS": ""})
     def test_non_204_response_returns_not_triggered(self):
         mock_response = MagicMock()
         mock_response.status_code = 403
@@ -254,7 +258,8 @@ class TestTaskTriggerDvc(unittest.TestCase):
         self.assertFalse(result.get("triggered"))
         self.assertEqual(result["status_code"], 403)
 
-    @patch.dict(os.environ, {"GITHUB_PAT": "ghp_test", "GITHUB_REPO": "owner/repo"})
+    @patch.dict(os.environ, {"GITHUB_PAT": "ghp_test", "GITHUB_REPO": "owner/repo",
+                             "GITHUB_ACTIONS": ""})
     def test_request_exception_raises_runtime_error(self):
         ctx = _make_context(xcom_data={"drift_detected": True})
         exc = dag_module.requests.RequestException("timeout")
