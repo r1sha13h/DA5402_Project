@@ -77,8 +77,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Tear down any leftover containers
-        run: docker compose down --remove-orphans || true
+      - name: Tear down any leftover containers and stale Airflow volume
+        run: |
+          docker compose down --remove-orphans || true
+          docker volume rm da5402_project_airflow_db 2>/dev/null || true
 
       - name: Activate project venv
         run: |
@@ -281,21 +283,20 @@ jobs:
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/health 2>/dev/null) || STATUS="000"
             if [ "$STATUS" == "200" ]; then
               echo "Airflow is healthy."
-              break
+              exit 0
             fi
             echo "Waiting for Airflow... ($i/60) [HTTP $STATUS]"
             sleep 10
           done
+          echo "ERROR: Airflow not healthy after 10 minutes. Container logs:"
+          docker logs spendsense_airflow 2>&1 | tail -60
+          exit 1
 
       - name: Smoke test — Airflow
         run: |
-          for i in 1 2 3; do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/health 2>/dev/null) || STATUS="000"
-            [ "$STATUS" == "200" ] && echo "Airflow smoke test PASSED." && exit 0
-            echo "Attempt $i/3: HTTP $STATUS — retrying in 10s..."
-            sleep 10
-          done
-          echo "Airflow health check failed after 3 attempts: HTTP $STATUS" && exit 1
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/health 2>/dev/null) || STATUS="000"
+          [ "$STATUS" == "200" ] && echo "Airflow smoke test PASSED." && exit 0
+          echo "Airflow smoke test failed: HTTP $STATUS" && exit 1
 
       - name: Trigger Airflow DAG (drift detection + combine_data)
         env:
