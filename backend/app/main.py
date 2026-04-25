@@ -296,7 +296,10 @@ def drift_check():
     if total_feedback < 100:
         return {
             "status": "insufficient_data",
-            "message": f"Need at least 100 feedback samples to detect drift (have {total_feedback}).",
+            "message": (
+                f"Need at least 100 feedback samples to detect drift "
+                f"(have {total_feedback})."
+            ),
             "feedback_samples": total_feedback,
             "baseline_distribution": {k: round(v, 4) for k, v in baseline_norm.items()},
         }
