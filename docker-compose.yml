@@ -106,7 +106,12 @@ services:
     environment:
       - AIRFLOW__CORE__EXECUTOR=SequentialExecutor
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=False
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////opt/airflow/airflow.db
+      # Enable Basic Auth on the REST API (for CI + Streamlit) while
+      # keeping session-cookie auth for the web UI. Without this, Airflow
+      # 2.9 defaults to session-only and silently rejects Basic Auth → 403.
+      - AIRFLOW__API__AUTH_BACKENDS=airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session
       - PROJECT_ROOT=/opt/airflow/project
       - PUSHGATEWAY_URL=http://pushgateway:9091
       - GITHUB_PAT=${GITHUB_PAT:-}
