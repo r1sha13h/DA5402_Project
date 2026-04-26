@@ -345,18 +345,17 @@ jobs:
             echo "No feedback.jsonl to persist."
           fi
 
-      - name: Upload pipeline artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: pipeline-artifacts
-          path: |
-            models/latest_model.pt
-            data/processed/vocab.pkl
-            data/processed/label_encoder.pkl
-            data/processed/feature_baseline.json
-            mlruns/mlflow.db
-            params.yaml
-          retention-days: 1
+      - name: Stage pipeline artifacts for Job 3 (local, avoids GitHub artifact API)
+        run: |
+          STAGE="$RUNNER_TEMP/ss-ci-$GITHUB_RUN_ID"
+          mkdir -p "$STAGE/models" "$STAGE/data/processed" "$STAGE/mlruns"
+          cp models/latest_model.pt          "$STAGE/models/"
+          cp data/processed/vocab.pkl        "$STAGE/data/processed/"
+          cp data/processed/label_encoder.pkl "$STAGE/data/processed/"
+          cp data/processed/feature_baseline.json "$STAGE/data/processed/"
+          cp mlruns/mlflow.db                "$STAGE/mlruns/"
+          cp params.yaml                     "$STAGE/"
+          echo "Staged $(du -sh "$STAGE" | cut -f1) of artifacts at $STAGE"
 
   # ── Job 3: Streamlit + FastAPI ────────────────────────────────────────────
   # Uses artifacts from Job 2 — no retraining.
@@ -369,10 +368,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download pipeline artifacts from Job 2
-        uses: actions/download-artifact@v4
-        with:
-          name: pipeline-artifacts
+      - name: Restore pipeline artifacts from local stage
+        run: |
+          STAGE="$RUNNER_TEMP/ss-ci-$GITHUB_RUN_ID"
+          [ -d "$STAGE" ] || (echo "ERROR: stage dir $STAGE missing" && exit 1)
+          cp -a "$STAGE/." .
+          echo "Restored $(du -sh "$STAGE" | cut -f1) of artifacts from local stage."
 
       - name: Activate project venv
         run: |
@@ -452,3 +453,7 @@ jobs:
       - name: Tear down all services
         if: always()
         run: docker compose down
+
+      - name: Clean up local artifact stage
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/ss-ci-$GITHUB_RUN_ID" || true
