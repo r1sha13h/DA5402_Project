@@ -151,6 +151,65 @@
           "datasource": "Prometheus"
         }
       ]
+    },
+    {
+      "id": 23,
+      "title": "Alerts Fired by Name",
+      "type": "piechart",
+      "gridPos": { "x": 0, "y": 36, "w": 12, "h": 8 },
+      "options": {
+        "pieType": "pie",
+        "tooltip": { "mode": "single" },
+        "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] }
+      },
+      "targets": [
+        {
+          "expr": "sum by (alertname) (count_over_time(ALERTS{alertstate=\"firing\"}[$__range]))",
+          "legendFormat": "{{alertname}}",
+          "datasource": "Prometheus",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "title": "Recent Email Alerts",
+      "type": "table",
+      "gridPos": { "x": 12, "y": 36, "w": 12, "h": 8 },
+      "options": {
+        "sortBy": [{ "desc": true, "displayName": "Fired At" }],
+        "footer": { "show": false }
+      },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "left" } }
+      },
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": { "names": ["Time", "alertname", "severity"] }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "Time": "Fired At",
+              "alertname": "Alert Name",
+              "severity": "Severity"
+            }
+          }
+        }
+      ],
+      "targets": [
+        {
+          "expr": "ALERTS{alertstate=\"firing\"}",
+          "legendFormat": "",
+          "datasource": "Prometheus",
+          "instant": true,
+          "format": "table"
+        }
+      ]
     }
   ]
 }
