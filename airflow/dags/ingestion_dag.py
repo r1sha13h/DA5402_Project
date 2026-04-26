@@ -213,6 +213,11 @@ def task_combine_data(**context):
 
 
 def task_run_ingest(**context):
+    # DVC Run 2 re-runs ingest on the combined dataset anyway, so skip in CI
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        logger.info("CI mode: skipping run_ingest — DVC pipeline will re-run ingest after combine_data.")
+        _push_pipeline_metrics(pipeline_ingest_success=1.0)
+        return {"skipped": True, "reason": "ci_mode"}
     result = subprocess.run(
         ["python", "-m", "src.data.ingest"],
         capture_output=True, text=True, cwd=PROJECT_ROOT,

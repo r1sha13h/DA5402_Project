@@ -299,16 +299,16 @@ jobs:
             -d "{\"dag_run_id\": \"$RUN_ID\"}")
           echo "Trigger response: $TRIGGER"
           STATE=""
-          for i in $(seq 1 60); do
+          for i in $(seq 1 40); do
             RESP=$(curl -s \
               "http://localhost:8080/api/v1/dags/spendsense_ingestion_pipeline/dagRuns/$RUN_ID" \
               -H "Authorization: Basic $AUTH")
             STATE=$(echo "$RESP" | python -c \
               "import json,sys; d=json.load(sys.stdin); print(d.get('state','unknown'))" 2>/dev/null || echo "unknown")
-            echo "DAG state: $STATE ($i/60)"
+            echo "DAG state: $STATE ($i/40)"
             [ "$STATE" = "success" ] && echo "Airflow DAG completed successfully." && break
             [ "$STATE" = "failed"  ] && echo "WARNING: Airflow DAG failed — proceeding with combined data if written." && break
-            sleep 10
+            sleep 5
           done
           # Verify combined transactions.csv was written by combine_data task
           if [ -f data/raw/transactions.csv ]; then
@@ -356,7 +356,7 @@ jobs:
             data/processed/label_encoder.pkl
             data/processed/feature_baseline.json
             metrics/
-            mlruns/
+            mlruns/mlflow.db
             params.yaml
           retention-days: 1
 
