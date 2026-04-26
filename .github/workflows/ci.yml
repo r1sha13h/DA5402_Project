@@ -222,10 +222,15 @@ jobs:
           cp models/latest_model.pt models/run1_model.pt
           echo "Run-1 model saved for fine-tuning."
 
+      - name: Build Airflow Docker image
+        run: docker compose build airflow
+
+      - name: Start Airflow service
+        run: docker compose up -d airflow
+
       - name: Verify Prometheus received training metrics
         run: |
-          echo "Waiting for Prometheus to scrape Pushgateway..."
-          sleep 20
+          echo "Checking whether Prometheus has scraped Pushgateway metrics..."
           for metric in spendsense_training_val_f1 spendsense_test_f1_macro spendsense_test_accuracy spendsense_training_duration_seconds; do
             RESULT=$(curl -s "http://localhost:9090/api/v1/query?query=${metric}" | python -c "
           import json, sys
@@ -258,12 +263,6 @@ jobs:
 
       - name: Push DVC artifacts to cache
         run: dvc push || echo "No DVC remote configured, skipping push"
-
-      - name: Build Airflow Docker image
-        run: docker compose build airflow
-
-      - name: Start Airflow service
-        run: docker compose up -d airflow
 
       - name: Wait for Airflow to be healthy
         run: |
@@ -351,11 +350,10 @@ jobs:
         with:
           name: pipeline-artifacts
           path: |
-            models/
+            models/latest_model.pt
             data/processed/vocab.pkl
             data/processed/label_encoder.pkl
             data/processed/feature_baseline.json
-            metrics/
             mlruns/mlflow.db
             params.yaml
           retention-days: 1
