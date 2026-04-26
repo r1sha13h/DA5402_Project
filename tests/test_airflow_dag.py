@@ -199,17 +199,25 @@ class TestTaskCheckDrift(unittest.TestCase):
 
 class TestTaskRunIngest(unittest.TestCase):
 
+    @patch.dict(os.environ, {"GITHUB_ACTIONS": ""})
     @patch("subprocess.run")
     def test_success(self, mock_run):
         mock_run.return_value = MagicMock(returncode=0, stdout="OK", stderr="")
         result = dag_module.task_run_ingest(**_make_context())
         self.assertEqual(result["returncode"], 0)
 
+    @patch.dict(os.environ, {"GITHUB_ACTIONS": ""})
     @patch("subprocess.run")
     def test_failure_raises(self, mock_run):
         mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="error")
         with self.assertRaises(RuntimeError):
             dag_module.task_run_ingest(**_make_context())
+
+    @patch.dict(os.environ, {"GITHUB_ACTIONS": "true"})
+    def test_ci_skip(self):
+        result = dag_module.task_run_ingest(**_make_context())
+        self.assertTrue(result.get("skipped"))
+        self.assertEqual(result.get("reason"), "ci_mode")
 
 
 class TestTaskTriggerDvc(unittest.TestCase):
