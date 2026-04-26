@@ -347,7 +347,7 @@ jobs:
 
       - name: Stage pipeline artifacts for Job 3 (local, avoids GitHub artifact API)
         run: |
-          STAGE="$RUNNER_TEMP/ss-ci-$GITHUB_RUN_ID"
+          STAGE="$HOME/ss-ci-$GITHUB_RUN_ID"
           mkdir -p "$STAGE/models" "$STAGE/data/processed" "$STAGE/mlruns"
           cp models/latest_model.pt          "$STAGE/models/"
           cp data/processed/vocab.pkl        "$STAGE/data/processed/"
@@ -370,7 +370,7 @@ jobs:
 
       - name: Restore pipeline artifacts from local stage
         run: |
-          STAGE="$RUNNER_TEMP/ss-ci-$GITHUB_RUN_ID"
+          STAGE="$HOME/ss-ci-$GITHUB_RUN_ID"
           [ -d "$STAGE" ] || (echo "ERROR: stage dir $STAGE missing" && exit 1)
           cp -a "$STAGE/." .
           echo "Restored $(du -sh "$STAGE" | cut -f1) of artifacts from local stage."
@@ -456,4 +456,4 @@ jobs:
 
       - name: Clean up local artifact stage
         if: always()
-        run: rm -rf "$RUNNER_TEMP/ss-ci-$GITHUB_RUN_ID" || true
+        run: rm -rf "$HOME/ss-ci-$GITHUB_RUN_ID" || true
