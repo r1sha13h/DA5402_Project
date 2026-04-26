@@ -14,6 +14,8 @@ venv/
 data/raw/
 data/ingested/
 data/processed/
+data/drift/transactions_drift.csv
+data/batch/batch_processed/
 models/best_model.pt
 models/latest_model.pt
 

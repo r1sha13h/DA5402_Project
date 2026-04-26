@@ -14,10 +14,8 @@ flake8 src/ backend/ tests/ --max-line-length=100 --exclude=__pycache__
 # Run all tests with coverage (must meet 60% threshold)
 pytest tests/ -v --cov=src --cov=backend --cov-report=term-missing --cov-fail-under=60
 
-# Run a single test file
+# Run a single test file / function
 pytest tests/test_api.py -v
-
-# Run a single test function
 pytest tests/test_model.py::TestBiLSTMClassifier::test_forward_pass -v
 
 # Run the full DVC ML pipeline (requires raw data at data/raw/transactions.csv)
@@ -51,7 +49,7 @@ docker compose down
 Five layers, outer to inner:
 
 ```
-GitHub Actions CI/CD (3-job BAT pipeline, self-hosted runner)
+GitHub Actions CI/CD (3-job pipeline, self-hosted GPU runner)
     ↓
 Airflow (spendsense_ingestion_pipeline DAG, @daily)
     ↓
@@ -64,56 +62,69 @@ docker-compose (8 services: FastAPI · Streamlit · MLflow · Airflow · Prometh
 
 ## Data & ML Pipeline (DVC — `dvc.yaml`)
 
-Four sequential stages driven by scripts in `src/`:
+Four sequential stages:
 
 1. **ingest** (`src/data/ingest.py`) — loads `data/raw/transactions.csv`, deduplicates on `(description, category)`, validates schema/nulls/categories, writes `data/ingested/transactions.csv` + `baseline_stats.json` (used by Airflow drift detector)
 2. **preprocess** (`src/data/preprocess.py`) — whitespace tokenisation, lowercase, vocab (top-10K, min_freq=2), pads/truncates to 50 tokens, stratified 70/15/15 split, writes `.npy` arrays + `vocab.pkl` + `label_encoder.pkl` + `feature_baseline.json`
-3. **train** (`src/models/train.py`) — trains `BiLSTMClassifier`, logs to MLflow as run type `bilstm_training` (Run 1) or `bilstm_finetune` (Run 2 when `FINETUNE_MODEL_PATH` is set), auto-promotes to `Staging` in MLflow registry, pushes metrics to Pushgateway
-4. **evaluate** (`src/models/evaluate.py`) — test-set eval, logs confusion matrix heatmap PNG to MLflow, writes `metrics/eval_metrics.json`, exits non-zero if F1 < 0.70 (CI gate)
+3. **train** (`src/models/train.py`) — trains `BiLSTMClassifier` for `params.yaml:train.epochs` epochs (currently 1). When `FINETUNE_MODEL_PATH` is set and the file exists, loads those weights and runs for exactly 1 epoch (fine-tune); MLflow run name is `bilstm_finetune` vs `bilstm_training`. Auto-promotes to `Staging` in MLflow registry. Pushes metrics to Pushgateway.
+4. **evaluate** (`src/models/evaluate.py`) — test-set eval, logs confusion matrix heatmap PNG to MLflow, writes `metrics/eval_metrics.json`, exits non-zero if F1 < 0.70 (CI gate). Pushes `spendsense_test_f1_macro` and `spendsense_test_accuracy` to Pushgateway.
 
-All hyperparameters in `params.yaml`. Model architecture in `src/models/model.py`: Embedding → BiLSTM (2 layers, 256 hidden, bidirectional) → Dropout → Linear → ReLU → Dropout → Linear.
+All hyperparameters in `params.yaml`. DVC remote is a local path: `/home/rishabh/.dvc_remote_da5402`.
+
+**Model architecture** (`src/models/model.py`): `Embedding(vocab_size, 128)` → `BiLSTM(2 layers, hidden=256, bidirectional)` → `Dropout` → `Linear(512→256)` → `ReLU` → `Dropout` → `Linear(256→10)`. Forward pass concatenates the last-layer forward and backward hidden states.
 
 ## CI/CD (`.github/workflows/ci.yml`) — self-hosted GPU runner
 
-Three jobs (total ~13 min):
+Three jobs (total ~18 min observed):
 
-- **Job 1 (test, ~40s)**: flake8 + pytest on every push to any branch
-- **Job 2 (ml-pipeline, ~11 min)**: main-branch only
+- **Job 1 (test, ~30s)**: flake8 + pytest on every push to any branch
+- **Job 2 (ml-pipeline, ~16 min)**: main-branch only
   1. Splits data 90/10 via `scripts/create_drift_split.py` (stratified 90% baseline + intentionally skewed 10% drift file)
   2. Starts infra services (MLflow, Prometheus, Grafana, Alertmanager, Pushgateway)
   3. **DVC Run 1** on 90% data → saves `models/run1_model.pt`
-  4. Builds and starts Airflow immediately after Run 1 (before Prometheus verify step, so the healthcheck wait overlaps)
-  5. Triggers `spendsense_ingestion_pipeline` DAG (drift detection → `combine_data` merges 90%+10%+feedback)
-  6. **DVC Run 2** fine-tunes with `FINETUNE_MODEL_PATH=models/run1_model.pt` on merged data
-- **Job 3 (app, ~1.5 min)**: main-branch only — downloads Job 2 artifacts (model, vocab, label_encoder, mlruns), smoke-tests FastAPI + Streamlit via Docker
+  4. Builds and starts Airflow immediately after Run 1
+  5. Triggers `spendsense_ingestion_pipeline` DAG and polls for up to 200s
+  6. **DVC Run 2** with `FINETUNE_MODEL_PATH=models/run1_model.pt` (fine-tune, 1 epoch)
+  7. Stages artifacts to `$HOME/ss-ci-$GITHUB_RUN_ID/` for Job 3
+- **Job 3 (app, ~45s)**: main-branch only — restores artifacts from local stage, smoke-tests FastAPI + Streamlit via Docker, cleans up stage dir
 
-**Artifact upload (Job 2 → Job 3):** `models/latest_model.pt`, `data/processed/vocab.pkl`, `data/processed/label_encoder.pkl`, `data/processed/feature_baseline.json`, `mlruns/mlflow.db`, `params.yaml`. `run1_model.pt` is only needed within Job 2 for fine-tuning and is not uploaded. Job 3 loads the model via `MODEL_PATH=/app/models/latest_model.pt` volume mount — it does not use MLflow artifact store.
+**Artifact passing (Job 2 → Job 3):** Copied to `$HOME/ss-ci-$GITHUB_RUN_ID/` (a path that persists across jobs on a self-hosted runner). Never goes through GitHub's artifact API. Files: `models/latest_model.pt`, `data/processed/vocab.pkl`, `data/processed/label_encoder.pkl`, `data/processed/feature_baseline.json`, `mlruns/mlflow.db`, `params.yaml`.
 
-**CI skip pattern:** `task_run_ingest` in the Airflow DAG returns immediately when `GITHUB_ACTIONS=true` (the env var is forwarded to the Airflow container via docker-compose). DVC Run 2 re-runs ingest anyway, so the Airflow ingest step would be redundant in CI.
+**CI skip pattern:** `task_run_ingest` in the Airflow DAG returns immediately when `GITHUB_ACTIONS=true`. DVC Run 2 re-runs ingest anyway.
+
+## Known Bug: Airflow API 403 in CI
+
+`AIRFLOW__API__AUTH_BACKENDS` is not set in `docker-compose.yml`. The Airflow container defaults to session-based (cookie) auth for the REST API, so the `Authorization: Basic admin:admin` header from CI is silently ignored and every POST `/dagRuns` returns HTTP 403. Consequences:
+
+- The DAG is never triggered in CI — the CI polling loop always runs all 40 × 5s = **200s** of wasted time
+- `combine_data` never runs in CI — `data/raw/transactions.csv` stays as the 90% split
+- **DVC Run 2 trains on the same 90% data as Run 1**, not the intended merged 90%+10%+feedback corpus
+
+**Fix needed:** Add `AIRFLOW__API__AUTH_BACKENDS=airflow.api.auth.backend.basic_auth` to the Airflow service environment in `docker-compose.yml`.
 
 ## FastAPI Backend (`backend/app/`)
 
 - `main.py` — FastAPI app; loads model on startup via `lifespan`. Endpoints:
-  - `POST /predict` — single description → `{predicted_category, confidence, all_scores}`
-  - `POST /predict/batch` — list of descriptions → list of results
-  - `GET /models` — list MLflow FINISHED runs with metrics
-  - `POST /models/switch` — zero-downtime model hot-swap from any MLflow run
-  - `POST /feedback` — appends ground-truth correction to `feedback/feedback.jsonl`
-  - `GET /drift` — compares `actual_category` distribution in `feedback.jsonl` vs `feature_baseline.json`; flags >10pp shift; requires ≥100 samples
+  - `POST /predict` — `{description}` → `{predicted_category, confidence, all_scores}`
+  - `POST /predict/batch` — `{descriptions: [...]}` → `{results: [...], total}`
+  - `GET /models` — list MLflow `bilstm_training` + `bilstm_finetune` FINISHED runs with metrics
+  - `POST /models/switch` — zero-downtime model hot-swap from any MLflow run_id
+  - `POST /feedback` — appends `{timestamp, description, predicted_category, actual_category, transaction_id, correct}` to `feedback/feedback.jsonl`
+  - `GET /drift` — compares `actual_category` distribution in `feedback.jsonl` vs `feature_baseline.json`; flags >10pp shift; requires ≥100 samples; sets `DRIFT_SCORE` Prometheus gauge
   - `GET /metrics` — Prometheus exposition
   - `GET /health` / `GET /ready`
-- `predictor.py` — `SpendSensePredictor` singleton; applies `torch.quantization.quantize_dynamic()` (INT8 on LSTM+Linear) on CPU; `load_from_mlflow(run_id)` downloads and swaps model at runtime
-- `monitoring.py` — all Prometheus metrics: `FEEDBACK_TOTAL`, `DRIFT_SCORE`, `MODEL_SWITCHES`, `REQUEST_COUNT`, `REQUEST_LATENCY`, `PREDICTION_CATEGORY`, `BATCH_SIZE`, `MODEL_LOADED`
-- `schemas.py` — Pydantic request/response models for all endpoints
+- `predictor.py` — `SpendSensePredictor` singleton. `load()` reads from disk paths set by env vars (`MODEL_PATH`, `VOCAB_PATH`, `LABEL_ENCODER_PATH`). `load_from_mlflow(run_id)` downloads artifacts to a tmpdir, expects model at `model/data/model.pth` within the artifact tree. Applies `torch.quantization.quantize_dynamic()` (INT8 on LSTM+Linear) **only on CPU**. `list_mlflow_runs()` filters to `bilstm_training` and `bilstm_finetune` run names only.
+- `monitoring.py` — Prometheus metrics: `REQUEST_COUNT` (Counter, labels: endpoint/status), `REQUEST_LATENCY` (Histogram), `ERROR_RATE` (Gauge, rolling 100-request window), `PREDICTION_CATEGORY` (Counter), `MODEL_LOADED` (Gauge), `BATCH_SIZE` (Histogram), `FEEDBACK_TOTAL` (Counter), `DRIFT_SCORE` (Gauge), `MODEL_SWITCHES` (Counter)
+- `schemas.py` — Pydantic models for all endpoints
 
 ## Streamlit Frontend (`frontend/`)
 
 Three pages:
-- **Home** (`Home.py`): single prediction, 6 example buttons that pre-fill the input, confidence bar chart, post-prediction feedback form (calls `POST /feedback`). The example buttons use `st.session_state.get("example_input")` (not `pop`) so the value survives into the form-submit rerun; `pop` happens inside `if submitted:` only.
-- **Batch Predict** (`pages/1_Batch_Predict.py`): three tabs — CSV upload, paste descriptions, HDFC bank statement XLS upload (auto-detects header row, filters withdrawal transactions). Results table, Altair donut chart, CSV download button. HDFC narrations are preprocessed by `_clean_hdfc_narration()` which strips UPI/NEFT/RTGS/etc. prefixes before inference.
-- **Pipeline Status** (`pages/2_Pipeline_Status.py`): health grid for all 7 services, live Prometheus metric counters, DVC DAG diagram via `dvc dag` + Graphviz, direct links to all tool UIs, Airflow DAG run history with task-level breakdown (queries Airflow REST API with Basic auth).
+- **Home** (`Home.py`): single prediction, 6 example buttons that pre-fill the input, confidence bar chart, post-prediction feedback form (calls `POST /feedback`). Example buttons use `st.session_state.get("example_input")` (not `pop`) so the value survives the form-submit rerun; `pop` happens inside `if submitted:` only.
+- **Batch Predict** (`pages/1_Batch_Predict.py`): three tabs — CSV upload, paste descriptions, HDFC bank statement XLS upload (auto-detects header row, filters withdrawal transactions). Results table, Altair donut chart, CSV download. HDFC narrations preprocessed by `_clean_hdfc_narration()` which strips UPI/NEFT/RTGS/etc. prefixes.
+- **Pipeline Status** (`pages/2_Pipeline_Status.py`): health grid for all 7 services, live Prometheus metric counters, DVC DAG diagram via `dvc dag` + Graphviz, links to all tool UIs, Airflow DAG run history with task-level breakdown (queries Airflow REST API with Basic auth).
 
-Frontend communicates with backend exclusively via configurable `BACKEND_URL` env var. `PROMETHEUS_URL` and `ALERTMANAGER_URL` must be set to `http://prometheus:9090` and `http://alertmanager:9093` respectively (set in `docker-compose.yml`) — `localhost` is unreachable inside the Docker network.
+Frontend communicates with backend exclusively via `BACKEND_URL` env var. `PROMETHEUS_URL` and `ALERTMANAGER_URL` must use container names (`http://prometheus:9090`, `http://alertmanager:9093`) — `localhost` is unreachable inside Docker network.
 
 ## Airflow DAG (`airflow/dags/ingestion_dag.py`)
 
@@ -125,11 +136,27 @@ verify_raw_data → validate_schema → check_nulls → check_drift → route_on
     └── no drift        ─────────────────────────────────────────→ pipeline_complete
 ```
 
-- `combine_data`: merges `data/raw/transactions_90.csv` + `data/drift/transactions_drift.csv` + `feedback/feedback.jsonl` (as description/actual_category pairs) → `data/raw/transactions.csv`
-- `trigger_dvc`: dispatches GitHub Actions `workflow_dispatch` to retrain; is a no-op when `GITHUB_ACTIONS=true` (CI runner drives Run 2 directly)
-- `run_ingest`: no-op when `GITHUB_ACTIONS=true` (DVC Run 2 re-runs ingest anyway)
+- `combine_data`: merges `data/raw/transactions_90.csv` + `data/drift/transactions_drift.csv` + `feedback/feedback.jsonl` (description/actual_category pairs) → `data/raw/transactions.csv`
+- `run_ingest`: uses `shutil.rmtree(data/ingested/)` + `os.makedirs()` before running the subprocess to clear uid=1000 files that uid=50000 (Airflow user) cannot overwrite. No-op when `GITHUB_ACTIONS=true`.
+- `trigger_dvc`: priority order — (1) `GITHUB_ACTIONS=true` → skip; (2) `GITHUB_PAT` set → GitHub Actions `workflow_dispatch`; (3) `LOCAL_DVC_REPRO=true` → run `dvc repro` in-process with optional `FINETUNE_MODEL_PATH` injection; (4) otherwise → skip (reason: no_pat)
 - `pipeline_complete` uses `trigger_rule="none_failed_min_one_success"` — fires regardless of which branch was taken
 - All tasks push metrics to Prometheus Pushgateway
+
+**Airflow container details:** `airflow/Dockerfile` installs from `apache/airflow:2.9.1-python3.10`. `airflow/entrypoint.sh` runs as root, does `chmod -R o+w /opt/airflow/project/data /opt/airflow/project/models`, then drops to airflow user (uid=50000) via `su -s /bin/bash airflow`. This is why `shutil.rmtree` works in task context (uid=50000 can unlink files in a world-writable non-sticky dir) but `os.chmod` of uid=1000 files fails with EPERM.
+
+## Tests (`tests/`)
+
+5 test files, ~50 tests total. Coverage excludes `train.py`, `evaluate.py`, `download_data.py` (require full DVC artifacts). Must meet 60% threshold.
+
+| File | What it tests |
+|---|---|
+| `test_model.py` (7) | BiLSTM forward pass shapes, padding, backward pass, determinism |
+| `test_ingest.py` (7) | Schema validation, null handling, category filtering, file output |
+| `test_preprocess.py` (9) | Tokenization, vocab building, encoding, padding/truncation |
+| `test_api.py` (25) | All FastAPI endpoints, predictor MLflow methods, error cases |
+| `test_airflow_dag.py` (18) | All DAG task callables in isolation |
+
+**Airflow test mock pattern:** The `airflow` package is stubbed in `sys.modules` at import time. Use `patch.object(dag_module.shutil, "rmtree")` and `patch.object(dag_module.os, "makedirs")` — NOT `@patch("airflow.dags.ingestion_dag.os.makedirs")` which fails because `airflow` is a stub module without a `dags` attribute.
 
 ## Monitoring Stack
 
@@ -144,23 +171,23 @@ verify_raw_data → validate_schema → check_nulls → check_drift → route_on
 | Grafana | 3001 | spendsense_grafana (admin/admin) |
 | Alertmanager | 9093 | spendsense_alertmanager |
 
-**What is instrumented (5 components):** FastAPI backend (pull via `/metrics`), training pipeline, evaluation pipeline, Airflow DAG, Streamlit frontend — all push to Pushgateway.
+**Instrumented components (5):** FastAPI backend (pull via `/metrics`), training pipeline, evaluation pipeline, Airflow DAG, Streamlit frontend — all push to Pushgateway.
 
-**Alert rules (11):** `HighErrorRate > 5%`, `DataDriftDetected`, `ModelNotLoaded`, `HighPredictionLatency`, `LowTestF1`, `LowValF1`, `TrainingDurationHigh`, `IngestFailed`, `FeedbackLoopDead` (48h `for:` — not instant-firing), `TailLatencySpike`, `FrequentModelSwitch`
+**Alert rules (11):** `HighErrorRate` (>5%, 2m), `ModelNotLoaded` (1m), `HighPredictionLatency` (p95>500ms, 5m), `LowTestF1` (<0.70, instant), `LowValF1` (<0.65, instant), `TrainingDurationHigh` (>2h, instant), `DataDriftDetected` (instant), `IngestFailed` (instant), `FeedbackLoopDead` (no feedback in 24h, fires after 48h), `TailLatencySpike` (p99>1s, 5m), `FrequentModelSwitch` (>3/h, instant)
 
-**Grafana:** 7 panels auto-provisioned from JSON at startup: Request Rate, Error Rate, Feedback Count, Drift Score, Latency Percentiles (P50/P95/P99), Model Info, Alert Firing History (`ALERTS{alertstate="firing"}` by alertname). Note: Grafana internal port is 3000, host port is 3001 — Docker inter-service config uses `grafana:3000`.
+**Grafana panels (7, auto-provisioned):** Request Rate (req/s), Model Loaded, Predictions by Category, Total Requests, Latency Percentiles (P50/P95/P99), Airflow Drift Flag, Alert Firing History. Note: Grafana internal port is 3000, host port is 3001 — Docker inter-service config uses `grafana:3000`.
 
 ## Feedback Loop & Drift Detection
 
 ```
-POST /feedback (description, predicted, actual)
-    → feedback/feedback.jsonl
-    → GET /drift detects distribution shift vs feature_baseline.json (≥100 samples, >10pp threshold)
-    → Airflow check_drift (daily) compares transactions_drift.csv vs baseline_stats.json
+POST /feedback (description, predicted_category, actual_category)
+    → feedback/feedback.jsonl  [persisted across CI runs]
+    → GET /drift  detects distribution shift vs feature_baseline.json (≥100 samples, >10pp)
+    → Airflow check_drift (@daily)  compares transactions_drift.csv vs baseline_stats.json
     → combine_data merges 90%+drift+feedback → run_ingest → trigger_dvc (retraining)
 ```
 
-`feedback/feedback.jsonl` persists across CI runs (copied to/from runner's project directory).
+`feedback/feedback.jsonl` is bind-mounted into both the backend and Airflow containers. It persists across CI runs via explicit copy to/from runner's project directory in the CI workflow.
 
 ## Rollback Mechanisms
 
@@ -170,10 +197,10 @@ POST /feedback (description, predicted, actual)
 
 ## Key Invariants
 
-- `train.py` and `evaluate.py` are excluded from coverage in `setup.cfg` (require full DVC artifacts)
-- `FINETUNE_MODEL_PATH` env var in `train.py` switches between full training (Run 1) and fine-tuning (Run 2 for 1 epoch)
-- `mlruns/` is bind-mounted into MLflow container and persisted back to the project directory after each CI run; only `mlruns/mlflow.db` is transferred as a CI artifact (full `mlruns/` with binary model duplicates was too slow)
-- `feedback/feedback.jsonl` must be reset before demo for a clean `/drift` result (contains CI test entries)
-- **MLproject has known issues:** stale `generate` entry point and hyperparameter mismatch vs `params.yaml` — use `dvc repro` not `mlflow run .` to reproduce training
-- `data/drift/transactions_drift.csv` is the 10% intentionally skewed split polled by Airflow; `data/raw/transactions_90.csv` is the 90% baseline; both are created by `scripts/create_drift_split.py`
-- Home page has no model-selection sidebar (removed) — use `POST /models/switch` API directly or the Pipeline Status page
+- `FINETUNE_MODEL_PATH` in `train.py` switches Run 1 (full train, N epochs from params) vs Run 2 (fine-tune, always 1 epoch). Currently `params.yaml:train.epochs=1` so both runs train 1 epoch.
+- `mlruns/` is bind-mounted into the MLflow container and persisted back to the project directory after each CI run. Only `mlruns/mlflow.db` is staged as the CI artifact (not the full `mlruns/` tree with binary model files).
+- `feedback/feedback.jsonl` must be reset before a live demo for a clean `/drift` result — it accumulates CI test entries.
+- **MLproject has known issues:** stale `generate` entry point and hyperparameter mismatch vs `params.yaml` — use `dvc repro` not `mlflow run .`.
+- `data/drift/transactions_drift.csv` is the 10% intentionally skewed split polled by Airflow. `data/raw/transactions_90.csv` is the 90% baseline. Both are created by `scripts/create_drift_split.py` which oversamples the top-3 categories in the 10% slice to ensure >10pp distribution shift.
+- Home page has no model-selection sidebar — use `POST /models/switch` API directly or the Pipeline Status page.
+- `$RUNNER_TEMP` is cleaned between jobs on self-hosted GitHub Actions runners. Use `$HOME` for any path that must persist from Job 2 to Job 3.

@@ -1,0 +1,10 @@
+# Exclude large non-source directories from Windsurf AI indexing
+venv/
+.venv/
+mlruns/
+.dvc/cache/
+.dvc/tmp/
+models/*.pt
+**/__pycache__/
+**/*.pyc
+.pytest_cache/

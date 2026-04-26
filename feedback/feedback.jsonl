@@ -116,3 +116,17 @@
 {"timestamp": "2026-04-26T10:00:00.000Z", "description": "Magizhnilam Foods", "predicted_category": "Food & Dining", "actual_category": "Food & Dining", "correct": true, "transaction_id": null}
 {"timestamp": "2026-04-26T10:00:00.000Z", "description": "Murali Mess Payment", "predicted_category": "Food & Dining", "actual_category": "Food & Dining", "correct": true, "transaction_id": null}
 {"timestamp": "2026-04-26T10:00:00.000Z", "description": "Bank Interest Income", "predicted_category": "Income", "actual_category": "Income", "correct": true, "transaction_id": null}
+{"timestamp": 1777228938.9724598, "description": "Andhikkadai", "predicted_category": "Shopping & Retail", "actual_category": "Food & Dining", "transaction_id": null, "correct": false}
+{"timestamp": 1777228953.410183, "description": "Vajra", "predicted_category": "Shopping & Retail", "actual_category": "Food & Dining", "transaction_id": null, "correct": false}
+{"timestamp": 1777228975.048313, "description": "Magizhnilam", "predicted_category": "Shopping & Retail", "actual_category": "Food & Dining", "transaction_id": null, "correct": false}
+{"timestamp": 1777229000.2568834, "description": "Usha Cafe", "predicted_category": "Shopping & Retail", "actual_category": "Food & Dining", "transaction_id": null, "correct": false}
+{"timestamp": 1777229012.522559, "description": "Miso Ramen", "predicted_category": "Financial Services", "actual_category": "Food & Dining", "transaction_id": null, "correct": false}
+{"timestamp": 1777229022.8861818, "description": "Swamy Cafe", "predicted_category": "Shopping & Retail", "actual_category": "Food & Dining", "transaction_id": null, "correct": false}
+{"timestamp": 1777229042.613094, "description": "Flipkart", "predicted_category": "Shopping & Retail", "actual_category": "Shopping & Retail", "transaction_id": null, "correct": true}
+{"timestamp": 1777229070.835278, "description": "Vendolite", "predicted_category": "Shopping & Retail", "actual_category": "Food & Dining", "transaction_id": null, "correct": false}
+{"timestamp": 1777229085.954285, "description": "Gramodyog", "predicted_category": "Shopping & Retail", "actual_category": "Food & Dining", "transaction_id": null, "correct": false}
+{"timestamp": 1777229105.0210443, "description": "PVR INOR", "predicted_category": "Financial Services", "actual_category": "Entertainment & Recreation", "transaction_id": null, "correct": false}
+{"timestamp": 1777229147.652609, "description": "UPI", "predicted_category": "Shopping & Retail", "actual_category": "Financial Services", "transaction_id": null, "correct": false}
+{"timestamp": 1777229168.4768372, "description": "Rapido", "predicted_category": "Shopping & Retail", "actual_category": "Transportation", "transaction_id": null, "correct": false}
+{"timestamp": 1777229188.7837014, "description": "BHIM", "predicted_category": "Shopping & Retail", "actual_category": "Financial Services", "transaction_id": null, "correct": false}
+{"timestamp": 1777229417.7782233, "description": "BESCOM electricity bill", "predicted_category": "Shopping & Retail", "actual_category": "Utilities & Services", "transaction_id": null, "correct": false}
