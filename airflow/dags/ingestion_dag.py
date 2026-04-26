@@ -16,6 +16,7 @@ the second DVC run trains on the combined corpus.
 import json
 import logging
 import os
+import shutil
 import subprocess
 from datetime import datetime, timedelta
 
@@ -218,6 +219,16 @@ def task_run_ingest(**context):
         logger.info("CI mode: skipping run_ingest — DVC pipeline will re-run ingest after combine_data.")
         _push_pipeline_metrics(pipeline_ingest_success=1.0)
         return {"skipped": True, "reason": "ci_mode"}
+    # Clear the ingested directory so the subprocess creates all outputs fresh.
+    # Files left by earlier DVC runs are owned by the host user (uid=1000) and cannot
+    # be overwritten by the forked Airflow task process on this bind mount.
+    ingested_dir = os.path.dirname(INGESTED_PATH)
+    if os.path.isdir(ingested_dir):
+        try:
+            shutil.rmtree(ingested_dir)
+        except OSError as exc:
+            logger.warning("Could not clear %s: %s — subprocess will attempt overwrite", ingested_dir, exc)
+    os.makedirs(ingested_dir, exist_ok=True)
     result = subprocess.run(
         ["python", "-m", "src.data.ingest"],
         capture_output=True, text=True, cwd=PROJECT_ROOT,
@@ -235,10 +246,13 @@ def task_run_ingest(**context):
 
 
 def task_trigger_dvc(**context):
-    """Trigger GitHub Actions workflow_dispatch for the second DVC run.
+    """Trigger retraining after drift is detected.
 
-    In a CI context (GITHUB_ACTIONS=true) the runner handles the second DVC
-    repro directly, so we skip the dispatch and just mark completion.
+    Priority order:
+    1. GITHUB_ACTIONS=true  → skip; CI runner drives dvc repro directly.
+    2. GITHUB_PAT set       → dispatch workflow_dispatch to GitHub Actions.
+    3. LOCAL_DVC_REPRO=true → run `dvc repro` in-process on the local machine.
+    4. otherwise            → skip with reason=no_pat (default, keeps tests green).
     """
     ti = context.get("ti")
     drift_result = ti.xcom_pull(task_ids="check_drift") if ti else None
@@ -258,6 +272,28 @@ def task_trigger_dvc(**context):
     github_repo = os.environ.get("GITHUB_REPO", "r1sha13h/DA5402_Project")
 
     if not github_pat:
+        # Local UI trigger with LOCAL_DVC_REPRO=true → run the pipeline in-process
+        if os.environ.get("LOCAL_DVC_REPRO") == "true":
+            logger.info("LOCAL_DVC_REPRO=true — running dvc repro on local machine.")
+            model_path = os.path.join(PROJECT_ROOT, "models", "latest_model.pt")
+            env = os.environ.copy()
+            if os.path.exists(model_path):
+                env["FINETUNE_MODEL_PATH"] = model_path
+                logger.info("Fine-tuning from existing model: %s", model_path)
+            else:
+                logger.warning("No existing model found at %s — training from scratch.", model_path)
+            proc = subprocess.Popen(
+                ["dvc", "repro"],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, cwd=PROJECT_ROOT, env=env,
+            )
+            for line in proc.stdout:
+                logger.info("[dvc] %s", line.rstrip())
+            proc.wait()
+            if proc.returncode != 0:
+                raise RuntimeError(f"dvc repro failed (rc={proc.returncode})")
+            _push_pipeline_metrics(pipeline_dvc_triggered=1.0)
+            return {"triggered": True, "reason": "local_dvc_repro"}
         logger.warning("GITHUB_PAT not set — cannot trigger GitHub Actions workflow.")
         return {"skipped": True, "reason": "no_pat"}
 

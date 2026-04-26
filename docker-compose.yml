@@ -112,6 +112,7 @@ services:
       - GITHUB_PAT=${GITHUB_PAT:-}
       - GITHUB_REPO=r1sha13h/DA5402_Project
       - GITHUB_ACTIONS=${GITHUB_ACTIONS:-false}
+      - LOCAL_DVC_REPRO=${LOCAL_DVC_REPRO:-false}
     command: bash -c "airflow db migrate && airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@spendsense.local || true && airflow standalone"
 
   # ── 5. Alertmanager ──────────────────────────────────────────────────────────
