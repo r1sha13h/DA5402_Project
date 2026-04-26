@@ -203,15 +203,21 @@ class TestTaskRunIngest(unittest.TestCase):
     @patch("subprocess.run")
     def test_success(self, mock_run):
         mock_run.return_value = MagicMock(returncode=0, stdout="OK", stderr="")
-        result = dag_module.task_run_ingest(**_make_context())
+        with patch.object(dag_module.shutil, "rmtree"), \
+             patch.object(dag_module.os, "makedirs"), \
+             patch.object(dag_module.os.path, "isdir", return_value=True):
+            result = dag_module.task_run_ingest(**_make_context())
         self.assertEqual(result["returncode"], 0)
 
     @patch.dict(os.environ, {"GITHUB_ACTIONS": ""})
     @patch("subprocess.run")
     def test_failure_raises(self, mock_run):
         mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="error")
-        with self.assertRaises(RuntimeError):
-            dag_module.task_run_ingest(**_make_context())
+        with patch.object(dag_module.shutil, "rmtree"), \
+             patch.object(dag_module.os, "makedirs"), \
+             patch.object(dag_module.os.path, "isdir", return_value=True):
+            with self.assertRaises(RuntimeError):
+                dag_module.task_run_ingest(**_make_context())
 
     @patch.dict(os.environ, {"GITHUB_ACTIONS": "true"})
     def test_ci_skip(self):
