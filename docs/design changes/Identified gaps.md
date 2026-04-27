@@ -1,25 +1,4 @@
 # Identified gaps 1.1
 
 - Identified gaps:
-    - Excess time taken by the new CI/CD pipeline build
-    - Not receiving alerts on my email from the alert manager what could be the cause? Fix this cause yourself or allow me to.
     - The feedbackloopdead and the lowrequestrate alerts are firing all the time. Fix this issue. In grafana dashboard, add a panel that shows alert types and the number of times they have been fired cumulatively accross the history of runs. They must persist.
-    - Whenever I click on examples under ‘try these examples’, the text gets copied to the text box but on clicking classify button, It does not show the predicted classes.
-    - In the batch predict bank statement, the xls upload is success but all the transactions are classified into a single category ‘Shopping & Retail’, fix this issue.
-    - In the pipeline status I see that prometheus & alertmanager are shown unreachable, what’s the issue, fix it.
-    - Remove the model selection feature in streamlit
-    - In grafana dashboard remove the following:
-        - P95 latency panel since a combined p50/p95/p99 panels are already there, remove ‘on /predict’ and replace with (seconds)
-        - batch size distribution
-        - Training metrics
-        - Training durations
-        - Feedback loop and drift detection
-        - Feedback entries
-        - Max drift score
-        - Rows ingested
-        - Model Hot-Swaps
-        - Alertmanager Alerts firing
-    - Fix the issues below mentioned in @docs/overhead.md
-        - Avoid the large numpy array artifacts uploaded or downloaded between jobs especially the avoid uploading the numpy arrays that are never read by job-3.
-        - Make the alert manager smoke test non blocking in order to mitigate the startup wait time
-    - Fix the gaps mentioned in @docs/assessment.md for better alignment of the project implementation with guidelines.
