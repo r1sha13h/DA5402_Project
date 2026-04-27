@@ -11,6 +11,16 @@
 
 ---
 
+## Docs
+
+- [docs/architecture.md](docs/architecture.md)
+- [docs/hld.md](docs/hld.md)
+- [docs/lld.md](docs/lld.md)
+- [docs/test_plan.md](docs/test_plan.md)
+- [docs/user_manual.md](docs/user_manual.md)
+
+---
+
 ## CI/CD
 
 - [.github/workflows/ci.yml](.github/workflows/ci.yml)
@@ -80,16 +90,6 @@
 - [tests/test_preprocess.py](tests/test_preprocess.py)
 - [tests/test_model.py](tests/test_model.py)
 - [tests/test_api.py](tests/test_api.py)
-
----
-
-## Docs
-
-- [docs/architecture.md](docs/architecture.md)
-- [docs/hld.md](docs/hld.md)
-- [docs/lld.md](docs/lld.md)
-- [docs/test_plan.md](docs/test_plan.md)
-- [docs/user_manual.md](docs/user_manual.md)
 
 ---
 
