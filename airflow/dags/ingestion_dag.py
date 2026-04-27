@@ -18,12 +18,13 @@ import logging
 import os
 import shutil
 import subprocess
+import time
 from datetime import datetime, timedelta
 
 import requests
 
 try:
-    from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
+    from prometheus_client import CollectorRegistry, Gauge, pushadd_to_gateway
     _PUSHGATEWAY_AVAILABLE = True
 except ImportError:
     _PUSHGATEWAY_AVAILABLE = False
@@ -57,6 +58,13 @@ SCHEDULE = os.environ.get("AIRFLOW_INGESTION_SCHEDULE", "@daily")
 
 
 def _push_pipeline_metrics(**metrics: float) -> None:
+    """Push gauge metrics for this DAG run to the Pushgateway.
+
+    Uses pushadd (POST) so each task's metrics coexist for the same
+    `spendsense_pipeline` job. push_to_gateway (PUT) would overwrite
+    earlier tasks' metrics — e.g. pipeline_complete would wipe
+    pipeline_drift_detected, breaking the DataDriftDetected alert.
+    """
     if not _PUSHGATEWAY_AVAILABLE:
         return
     try:
@@ -64,7 +72,7 @@ def _push_pipeline_metrics(**metrics: float) -> None:
         for name, value in metrics.items():
             Gauge(f"spendsense_{name}", f"SpendSense pipeline metric: {name}",
                   registry=registry).set(value)
-        push_to_gateway(PUSHGATEWAY_URL, job="spendsense_pipeline", registry=registry)
+        pushadd_to_gateway(PUSHGATEWAY_URL, job="spendsense_pipeline", registry=registry)
     except Exception as exc:
         logger.warning("Could not push pipeline metrics: %s", exc)
 
@@ -324,6 +332,20 @@ def task_trigger_dvc(**context):
 def task_pipeline_complete(**context):
     logger.info("Pipeline complete.")
     _push_pipeline_metrics(pipeline_complete=1.0)
+
+    # If drift was detected, the metric is currently 1 in Pushgateway and the
+    # DataDriftDetected alert is heading toward firing. Wait long enough for
+    # Prometheus to scrape (≤15s), evaluate the rule (≤15s), and Alertmanager
+    # to honour group_wait (30s) before reseting the gauge. Resetting earlier
+    # would race with email dispatch and could silently resolve the alert.
+    # After reset, the alert clears so repeat_interval re-notifications stop.
+    ti = context.get("ti")
+    drift_result = ti.xcom_pull(task_ids="check_drift") if ti else None
+    if drift_result and drift_result.get("drift_detected"):
+        logger.info("Drift was detected — waiting 75s for alert to fire, then resetting.")
+        time.sleep(75)
+        _push_pipeline_metrics(pipeline_drift_detected=0.0)
+        logger.info("Drift gauge reset to 0 — alert will resolve on next scrape.")
     return {"status": "complete"}
 
 
