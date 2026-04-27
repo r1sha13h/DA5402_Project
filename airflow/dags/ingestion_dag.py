@@ -342,10 +342,16 @@ def task_pipeline_complete(**context):
     ti = context.get("ti")
     drift_result = ti.xcom_pull(task_ids="check_drift") if ti else None
     if drift_result and drift_result.get("drift_detected"):
-        logger.info("Drift was detected — waiting 75s for alert to fire, then resetting.")
-        time.sleep(75)
-        _push_pipeline_metrics(pipeline_drift_detected=0.0)
-        logger.info("Drift gauge reset to 0 — alert will resolve on next scrape.")
+        # In CI the whole stack is torn down right after the run, so Pushgateway
+        # is wiped and the alert auto-resolves anyway — skip the 75s wait.
+        if os.environ.get("GITHUB_ACTIONS", "").lower() == "true":
+            logger.info("Drift detected — skipping 75s alert-wait (GITHUB_ACTIONS=true).")
+            _push_pipeline_metrics(pipeline_drift_detected=0.0)
+        else:
+            logger.info("Drift was detected — waiting 75s for alert to fire, then resetting.")
+            time.sleep(75)
+            _push_pipeline_metrics(pipeline_drift_detected=0.0)
+            logger.info("Drift gauge reset to 0 — alert will resolve on next scrape.")
     return {"status": "complete"}
 
 
