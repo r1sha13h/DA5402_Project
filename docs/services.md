@@ -7,7 +7,7 @@
 | 3 | **Streamlit Frontend** | `spendsense_frontend` | http://localhost:8501 | — | Web UI for predictions |
 | 4 | **Apache Airflow** | `spendsense_airflow` | http://localhost:8080 | admin / admin | Data ingestion DAG orchestration |
 | 5 | **Prometheus** | `spendsense_prometheus` | http://localhost:9090 | — | Metrics collection + alert evaluation |
-| 6 | **Grafana** | `spendsense_grafana` | http://localhost:3001 | admin / admin | NRT dashboards (7 panels) |
+| 6 | **Grafana** | `spendsense_grafana` | http://localhost:3001 | admin / admin | NRT dashboards (8 panels, auto-provisioned) |
 | 7 | **Alertmanager** | `spendsense_alertmanager` | http://localhost:9093 | — | Alert routing (email via Gmail SMTP) |
 | 8 | **Pushgateway** | `spendsense_pushgateway` | http://localhost:9091 | — | Receives batch-job metrics from train/eval/Airflow/Streamlit |
 
@@ -35,3 +35,5 @@ docker compose up -d backend frontend
 - The backend container reads the model from `./models:/app/models:ro` (bind mount). Ensure `models/latest_model.pt` exists before starting the backend.
 - Airflow runs in standalone mode (webserver + scheduler in one process) with a SQLite backend. It is not a production Airflow deployment.
 - `feedback/feedback.jsonl` is bind-mounted into the backend container so corrections survive container restarts.
+- Airflow REST API accepts both Basic Auth (used by CI's `admin:admin` trigger) and session auth (used by the web UI), enabled via `AIRFLOW__API__AUTH_BACKENDS=airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session` and `AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=False` on the Airflow service env.
+- The Airflow DAG is **baked into the image** (not bind-mounted). After editing any file under `airflow/dags/`, run `docker compose build airflow` and recreate the container with a fresh `airflow_db` volume to pick up changes.

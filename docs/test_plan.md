@@ -8,7 +8,7 @@
 | Test accuracy | ≥ 0.70 | ✅ Achieved: 98.75% |
 | API latency (p95) | < 200ms | ✅ Verified via Prometheus histogram |
 | Unit test suite | All tests pass (0 failures) | ✅ 68/68 pass |
-| Code coverage | ≥ 60% | ✅ 66.3% (CI enforced) |
+| Code coverage | ≥ 60% (CI gate) | ✅ ~70 % observed; CI fails the build if `--cov-fail-under=60` is breached |
 | Error rate in production | < 5% | ✅ Alertmanager fires at > 5% |
 
 ---
@@ -139,11 +139,21 @@
 
 | Category | Total | Passed | Failed |
 |---|---|---|---|
-| Unit tests (pytest) | 68 | 68 | 0 |
-| Integration tests | 8 | 8 | 0 |
+| Unit tests (pytest, 5 files) | 68 | 68 | 0 |
+| Integration tests (S1–S8) | 8 | 8 | 0 |
 | **Total** | **76** | **76** | **0** |
 
-**Latest CI run:** #24951097395 — All 3 jobs passed
+Unit-test breakdown by file:
+
+| File | Tests | Range |
+|---|---|---|
+| `tests/test_ingest.py` | 8 | TC01–TC08 |
+| `tests/test_preprocess.py` | 12 | TC09–TC20 |
+| `tests/test_model.py` | 7 | TC21–TC27 |
+| `tests/test_api.py` | 24 | TC28–TC51 |
+| `tests/test_airflow_dag.py` | 17 | TC52–TC68 |
+
+**Latest CI run:** [`24983169791`](https://github.com/r1sha13h/DA5402_Project/actions/runs/24983169791) — All 3 jobs passed (Lint+Tests 30 s · ML Pipeline 11.5 min · Smoke Tests 1 min · total ~13 min)
 
 *Reproduce unit tests:*
 ```bash

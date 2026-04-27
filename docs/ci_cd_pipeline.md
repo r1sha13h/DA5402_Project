@@ -26,7 +26,15 @@
 └─────────────────────────────────────────┘
 ```
 
-Total end-to-end: ~13 minutes.
+Total end-to-end: ~13 minutes (verified against latest run `24983169791`).
+
+Observed per-job timings on the self-hosted RTX 3060 Laptop runner:
+
+| Job | Wall-clock | Wait time |
+|---|---|---|
+| Job 1 — Lint & Tests | ~30 s | n/a |
+| Job 2 — ML Pipeline + Infra | ~11.5 min | dominated by 2 × BiLSTM training passes (~3 min each) |
+| Job 3 — Smoke Tests | ~1 min | n/a |
 
 ---
 
@@ -101,7 +109,7 @@ Total end-to-end: ~13 minutes.
 |---|---|---|
 | Wait for Airflow healthy | Polls `http://localhost:8080/health` every 10s, up to 60 attempts; by this point Airflow has been starting for ~20s so wait is short | ~20s typical |
 | Smoke test — Airflow | Verifies Airflow on port 8080 | ~1s |
-| Trigger Airflow DAG | `POST /api/v1/dags/spendsense_ingestion_pipeline/dagRuns` via Basic Auth. Polls DAG state every 5s for up to 40 iterations (~3.3 min max). On success `combine_data` has merged 90%+10%+feedback into `transactions.csv`. On failure uses shell fallback merge | ~205s |
+| Trigger Airflow DAG | `POST /api/v1/dags/spendsense_ingestion_pipeline/dagRuns` via Basic Auth (`admin:admin`). Polls DAG state every 5 s for up to 40 iterations (~3.3 min budget). On success `combine_data` has merged 90% + 10% + feedback into `transactions.csv` (~1.28 M rows). On failure uses shell-fallback merge | ~60 s typical |
 
 ### DVC Run 2 (fine-tuning on combined data)
 
@@ -176,6 +184,20 @@ Job 3 loads the model via `MODEL_PATH=/app/models/latest_model.pt` volume mount 
 
 **Why `dvc repro --force` on Run 2?** Input data changed (90% → 100% combined), so `--force` makes intent explicit even though DVC would rerun anyway.
 
-**Why `GITHUB_ACTIONS=true` forwarded to Airflow?** The `task_run_ingest` and `task_trigger_dvc` functions check this env var. In CI, `run_ingest` returns immediately (DVC Run 2 re-runs ingest anyway) and `trigger_dvc` skips the GitHub dispatch (the runner handles Run 2 directly). Both avoid redundant work without changing the DAG structure.
+**Why `GITHUB_ACTIONS=true` forwarded to Airflow?** Three task callables check this env var:
+- `task_run_ingest` returns immediately with `{skipped: True, reason: ci_mode}` (DVC Run 2 re-runs ingest anyway)
+- `task_trigger_dvc` skips with `ci_context` (the runner drives DVC Run 2 directly)
+- `task_pipeline_complete` skips the 75 s alert-fire-and-resolve wait (the whole stack is torn down right after the run, so the alert auto-resolves anyway). This skip alone saves ~165 s vs running the wait in CI.
 
-**Why Airflow build/start is moved before the Prometheus verify step?** Airflow takes ~40s to become healthy. Starting it before the Prometheus verify + metric check + DVC push steps (~25s combined) means the healthcheck wait is effectively free, saving ~20s of serial waiting.
+All three short-circuits avoid redundant work without changing the DAG topology, so the same DAG file runs identically locally for demos.
+
+**Why Airflow build/start is moved before the Prometheus verify step?** Airflow takes ~40 s to become healthy. Starting it before the Prometheus verify + metric check + DVC push steps (~25 s combined) means the healthcheck wait is effectively free, saving ~20 s of serial waiting.
+
+**Why Basic Auth needs explicit env vars on the Airflow service?** Airflow 2.9 defaults to session-only auth and silently rejects `Authorization: Basic admin:admin` headers (returns 403). The `docker-compose.yml` Airflow service sets:
+
+```yaml
+- AIRFLOW__API__AUTH_BACKENDS=airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session
+- AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=False
+```
+
+The first lets the REST API accept Basic Auth (so CI's curl trigger works); the second prevents fresh DAGs from sitting in `paused` state on first registration (CI wipes `airflow_db` every run, so without this flag the DAG would sit `queued` indefinitely).

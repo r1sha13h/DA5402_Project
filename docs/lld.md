@@ -97,7 +97,7 @@
 
 ### GET /models
 
-**Description:** List all available MLflow FINISHED experiment runs for model inspection.
+**Description:** List all available MLflow FINISHED runs whose run name is `bilstm_training` or `bilstm_finetune` (i.e. model-producing runs only — `evaluation` sub-runs are excluded). Used by the UI for the model-switch picker and by the demo for hot-swap.
 
 **Response (200 OK):**
 ```json

@@ -1,173 +1,309 @@
 {
-  "title": "SpendSense — MLOps Dashboard",
-  "uid": "spendsense-main",
-  "schemaVersion": 39,
-  "refresh": "10s",
-  "time": { "from": "now-1h", "to": "now" },
   "panels": [
     {
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
       "id": 1,
-      "title": "Request Rate (req/s)",
-      "type": "timeseries",
-      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 8 },
       "targets": [
         {
+          "datasource": "Prometheus",
           "expr": "rate(spendsense_requests_total[1m])",
-          "legendFormat": "{{endpoint}} {{status}}",
-          "datasource": "Prometheus"
+          "legendFormat": "{{endpoint}} {{status}}"
         }
-      ]
+      ],
+      "title": "Request Rate (req/s)",
+      "type": "timeseries"
     },
     {
-      "id": 4,
-      "title": "Model Loaded",
-      "type": "stat",
-      "gridPos": { "x": 0, "y": 8, "w": 8, "h": 6 },
       "fieldConfig": {
         "defaults": {
           "mappings": [
             {
-              "type": "value",
               "options": {
-                "1": { "text": "Model Loaded", "color": "green" },
-                "0": { "text": "Not Loaded",   "color": "red"   }
-              }
+                "0": {
+                  "color": "red",
+                  "text": "Not Loaded"
+                },
+                "1": {
+                  "color": "green",
+                  "text": "Model Loaded"
+                }
+              },
+              "type": "value"
             }
           ]
         }
       },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 0,
+        "y": 8
+      },
+      "id": 4,
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] },
         "colorMode": "background",
         "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
         "textMode": "value"
       },
       "targets": [
         {
+          "datasource": "Prometheus",
           "expr": "sum(spendsense_model_loaded * up{job=\"spendsense_backend\"}) or vector(0)",
-          "legendFormat": "Model Status",
-          "datasource": "Prometheus"
+          "legendFormat": "Model Status"
         }
-      ]
+      ],
+      "title": "Model Loaded",
+      "type": "stat"
     },
     {
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 8,
+        "y": 8
+      },
       "id": 5,
-      "title": "Predictions by Category",
-      "type": "piechart",
-      "gridPos": { "x": 8, "y": 8, "w": 16, "h": 8 },
       "targets": [
         {
+          "datasource": "Prometheus",
           "expr": "spendsense_predictions_by_category_total",
-          "legendFormat": "{{category}}",
-          "datasource": "Prometheus"
+          "legendFormat": "{{category}}"
         }
-      ]
+      ],
+      "title": "Predictions by Category",
+      "type": "piechart"
     },
     {
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 16
+      },
       "id": 6,
-      "title": "Total Requests",
-      "type": "stat",
-      "gridPos": { "x": 0, "y": 16, "w": 8, "h": 4 },
       "targets": [
         {
+          "datasource": "Prometheus",
           "expr": "sum(spendsense_requests_total)",
-          "legendFormat": "Total",
-          "datasource": "Prometheus"
+          "legendFormat": "Total"
         }
-      ]
+      ],
+      "title": "Total Requests",
+      "type": "stat"
     },
     {
-      "id": 13,
-      "title": "Latency Percentiles — P50 / P95 / P99 (seconds)",
-      "type": "timeseries",
-      "gridPos": { "x": 0, "y": 20, "w": 24, "h": 8 },
       "fieldConfig": {
-        "defaults": { "unit": "s", "custom": { "lineWidth": 2 } },
+        "defaults": {
+          "custom": {
+            "lineWidth": 2
+          },
+          "unit": "s"
+        },
         "overrides": [
-          { "matcher": { "id": "byName", "options": "p99" }, "properties": [{ "id": "color", "value": { "fixedColor": "red",    "mode": "fixed" } }] },
-          { "matcher": { "id": "byName", "options": "p95" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] },
-          { "matcher": { "id": "byName", "options": "p50" }, "properties": [{ "id": "color", "value": { "fixedColor": "green",  "mode": "fixed" } }] }
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p99"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p95"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p50"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
         ]
       },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "id": 13,
       "targets": [
         {
+          "datasource": "Prometheus",
           "expr": "histogram_quantile(0.50, rate(spendsense_request_latency_seconds_bucket{endpoint=\"/predict\"}[1m]))",
-          "legendFormat": "p50",
-          "datasource": "Prometheus"
+          "legendFormat": "p50"
         },
         {
+          "datasource": "Prometheus",
           "expr": "histogram_quantile(0.95, rate(spendsense_request_latency_seconds_bucket{endpoint=\"/predict\"}[1m]))",
-          "legendFormat": "p95",
-          "datasource": "Prometheus"
+          "legendFormat": "p95"
         },
         {
+          "datasource": "Prometheus",
           "expr": "histogram_quantile(0.99, rate(spendsense_request_latency_seconds_bucket{endpoint=\"/predict\"}[1m]))",
-          "legendFormat": "p99",
-          "datasource": "Prometheus"
+          "legendFormat": "p99"
         }
-      ]
+      ],
+      "title": "Latency Percentiles \u2014 P50 / P95 / P99 (seconds)",
+      "type": "timeseries"
     },
     {
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 28
+      },
       "id": 17,
-      "title": "Airflow Drift Flag",
-      "type": "stat",
-      "gridPos": { "x": 0, "y": 28, "w": 8, "h": 8 },
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] },
         "colorMode": "background",
         "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
         "textMode": "value_and_name",
         "thresholds": {
           "steps": [
-            { "color": "green", "value": 0 },
-            { "color": "red",   "value": 1 }
+            {
+              "color": "green",
+              "value": 0
+            },
+            {
+              "color": "red",
+              "value": 1
+            }
           ]
         }
       },
       "targets": [
         {
+          "datasource": "Prometheus",
           "expr": "spendsense_pipeline_drift_detected",
-          "legendFormat": "Drift Detected",
-          "datasource": "Prometheus"
+          "legendFormat": "Drift Detected"
         }
-      ]
+      ],
+      "title": "Airflow Drift Flag",
+      "type": "stat"
     },
     {
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 28
+      },
       "id": 23,
-      "title": "Alerts Fired by Name",
-      "type": "piechart",
-      "gridPos": { "x": 8, "y": 28, "w": 8, "h": 8 },
       "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
         "pieType": "pie",
-        "tooltip": { "mode": "single" },
-        "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] }
+        "tooltip": {
+          "mode": "single"
+        }
       },
       "targets": [
         {
-          "expr": "sum by (alertname) (count_over_time(ALERTS{alertstate=\"firing\"}[$__range]))",
-          "legendFormat": "{{alertname}}",
           "datasource": "Prometheus",
-          "instant": true
+          "expr": "sum by (alertname) (count_over_time(ALERTS{alertstate=\"firing\"}[$__range]))",
+          "instant": true,
+          "legendFormat": "{{alertname}}"
         }
-      ]
+      ],
+      "title": "Alerts Fired by Name",
+      "type": "piechart"
     },
     {
-      "id": 24,
-      "title": "Recent Email Alerts",
-      "type": "table",
-      "gridPos": { "x": 16, "y": 28, "w": 8, "h": 8 },
-      "options": {
-        "sortBy": [{ "desc": true, "displayName": "Fired At" }],
-        "footer": { "show": false }
-      },
       "fieldConfig": {
-        "defaults": { "custom": { "align": "left" } }
+        "defaults": {
+          "custom": {
+            "align": "left"
+          }
+        }
       },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 28
+      },
+      "id": 24,
+      "options": {
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Fired At"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "ALERTS{alertstate=\"firing\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": ""
+        }
+      ],
+      "title": "Recent Email Alerts",
       "transformations": [
         {
           "id": "filterFieldsByName",
           "options": {
-            "include": { "names": ["Time", "alertname", "severity"] }
+            "include": {
+              "names": [
+                "Time",
+                "alertname",
+                "severity"
+              ]
+            }
           }
         },
         {
@@ -181,15 +317,15 @@
           }
         }
       ],
-      "targets": [
-        {
-          "expr": "ALERTS{alertstate=\"firing\"}",
-          "legendFormat": "",
-          "datasource": "Prometheus",
-          "instant": true,
-          "format": "table"
-        }
-      ]
+      "type": "table"
     }
-  ]
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "title": "SpendSense \u2014 MLOps Dashboard",
+  "uid": "spendsense-main"
 }
