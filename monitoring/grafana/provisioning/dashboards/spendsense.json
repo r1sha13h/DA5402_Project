@@ -44,7 +44,7 @@
       },
       "targets": [
         {
-          "expr": "spendsense_model_loaded",
+          "expr": "sum(spendsense_model_loaded * up{job=\"spendsense_backend\"}) or vector(0)",
           "legendFormat": "Model Status",
           "datasource": "Prometheus"
         }
@@ -111,7 +111,7 @@
       "id": 17,
       "title": "Airflow Drift Flag",
       "type": "stat",
-      "gridPos": { "x": 0, "y": 28, "w": 8, "h": 6 },
+      "gridPos": { "x": 0, "y": 28, "w": 8, "h": 8 },
       "options": {
         "reduceOptions": { "calcs": ["lastNotNull"] },
         "colorMode": "background",
@@ -133,30 +133,10 @@
       ]
     },
     {
-      "id": 22,
-      "title": "Alert Firing History (cumulative)",
-      "type": "timeseries",
-      "gridPos": { "x": 8, "y": 28, "w": 16, "h": 8 },
-      "fieldConfig": {
-        "defaults": { "custom": { "lineWidth": 2, "fillOpacity": 10 } }
-      },
-      "options": {
-        "tooltip": { "mode": "multi" },
-        "legend": { "displayMode": "table", "placement": "bottom" }
-      },
-      "targets": [
-        {
-          "expr": "ALERTS{alertstate=\"firing\"}",
-          "legendFormat": "{{alertname}}",
-          "datasource": "Prometheus"
-        }
-      ]
-    },
-    {
       "id": 23,
       "title": "Alerts Fired by Name",
       "type": "piechart",
-      "gridPos": { "x": 0, "y": 36, "w": 12, "h": 8 },
+      "gridPos": { "x": 8, "y": 28, "w": 8, "h": 8 },
       "options": {
         "pieType": "pie",
         "tooltip": { "mode": "single" },
@@ -175,7 +155,7 @@
       "id": 24,
       "title": "Recent Email Alerts",
       "type": "table",
-      "gridPos": { "x": 12, "y": 36, "w": 12, "h": 8 },
+      "gridPos": { "x": 16, "y": 28, "w": 8, "h": 8 },
       "options": {
         "sortBy": [{ "desc": true, "displayName": "Fired At" }],
         "footer": { "show": false }

@@ -15,14 +15,15 @@ groups:
             100 requests (threshold: 5%).
 
       - alert: ModelNotLoaded
-        expr: spendsense_model_loaded == 0
+        expr: spendsense_model_loaded == 0 or up{job="spendsense_backend"} == 0
         for: 1m
         labels:
           severity: critical
         annotations:
           summary: "SpendSense prediction model is not loaded"
           description: >
-            The model has been unavailable for more than 1 minute.
+            The model has been unavailable for more than 1 minute
+            (backend reporting model_loaded=0, or backend unreachable).
             Check backend logs and /ready endpoint.
 
       - alert: HighPredictionLatency
