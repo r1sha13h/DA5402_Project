@@ -9,31 +9,27 @@ SpendSense is a neural-network-based personal expense classifier that automatica
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
 │              GitHub Actions  (CI/CD Orchestration Layer)             │
-│  on: push to main/develop · pull_request · workflow_dispatch         │
+│  Trigger on: push to main/develop · pull_request · workflow_dispatch │
 │  Job 1: lint + pytest (all branches, ~40s)                           │
-│  Job 2: data split → infra → DVC Run 1 → Airflow → DVC Run 2 (~11m) │
+│  Job 2: ML pipeline: train → Airflow drift check → fine-tune (~11m)  │
 │  Job 3: artifact download → backend+frontend smoke tests (~1.5m)     │
 └───────────────┬──────────────────────────┬───────────────────────────┘
                 │                          │
                 ▼                          ▼
 ┌──────────────────────────┐   ┌───────────────────────────────────────┐
-│  Airflow (Data Layer)    │   │  DVC Pipeline (ML Reproducibility)    │
-│  spendsense_ingestion    │   │  ingest → preprocess → train → eval   │
-│  _pipeline (9 tasks)     │   │  params.yaml drives all stages        │
-│  - verify / schema /     │   │  Git + DVC track data & model         │
-│    nulls / drift /       │   │  dvc.lock pins all artifact hashes    │
-│    route / combine /     │   └──────────────┬────────────────────────┘
-│    ingest / trigger /    │                  │
-│    complete              │                  │
+│  Airflow (DAG Engine)    │   │  DVC (Reproducible ML Pipeline)       │
+│  @daily · 9-task DAG     │   │  ingest → preprocess → train → eval   │
+│  Validates schema, nulls │   │  params.yaml controls all stages      │
+│  Detects data drift      │   │  dvc.lock pins every artifact hash    │
+│  If drift: combine data  │   └──────────────┬────────────────────────┘
+│  and trigger DVC repro   │                  │
 └──────────────────────────┘                  │
                                               ▼
                                ┌──────────────────────────┐
                                │  MLflow Tracking Server  │
-                               │  - metrics, params,      │
-                               │    artifacts per run     │
-                               │  - Model Registry        │
-                               │    (auto-promotes to     │
-                               │     Staging on train)    │
+                               │  Logs every run: params, │
+                               │  metrics & model weights │
+                               │  Auto-promotes to Staging│
                                └──────────────┬───────────┘
                                               │
                 ┌─────────────────────────────▼─────────────────────────┐
@@ -49,12 +45,12 @@ SpendSense is a neural-network-based personal expense classifier that automatica
                 │  │ /metrics        │                                  │
                 │  └────────┬────────┘                                  │
                 │           │                                           │
-                │  ┌────────▼────────────────────────────────────────┐  │
+                │  ┌────────▼──────────────────────────────────────┐  │
                 │  │ Prometheus · Grafana · Alertmanager · Pushgateway│  │
-                │  │ 7-panel NRT dashboard · 11 alert rules           │  │
-                │  │ HighErrorRate > 5% · DataDriftDetected           │  │
-                │  │ Pushgateway receives metrics from all 5 components│ │
-                │  └──────────────────────────────────────────────────┘  │
+                │  │ Real-time dashboard: 8 panels · 11 alert rules   │  │
+                │  │ Alerts: HighErrorRate > 5% · DataDriftDetected   │  │
+                │  │ All 5 components push or expose metrics          │  │
+                │  └────────────────────────────────────────────────────┘  │
                 └───────────────────────────────────────────────────────┘
 ```
 
@@ -63,9 +59,9 @@ SpendSense is a neural-network-based personal expense classifier that automatica
 ### Layer 1 — GitHub Actions (Outer CI/CD Orchestrator)
 - Top-level control plane; triggers on `git push` to `main`/`develop`, pull requests, and `workflow_dispatch`
 - **3-job BAT pipeline** (Build → Assess → Test), total ~13 min on a self-hosted GPU runner:
-  - **Job 1** (~40s): flake8 lint + 68 unit tests + 60% coverage gate — runs on every branch
-  - **Job 2** (~11 min): 90-10 drift split → infra services up → DVC Run 1 (90% baseline) → Airflow DAG (drift detection + data merge) → DVC Run 2 (fine-tune) — main branch only
-  - **Job 3** (~1.5 min): download model artifact → Docker build backend+frontend → smoke-test all API endpoints — main branch only
+  - **Job 1** (~30s): flake8 lint + 68 unit tests + 60% coverage gate — runs on every branch
+  - **Job 2** (~11.5 min): 90-10 drift split → infra services up → DVC Run 1 (90% baseline) → Airflow DAG (drift detection + 90%+10%+feedback merge) → DVC Run 2 (fine-tune) — main branch only
+  - **Job 3** (~1 min): restore model artifact from local stage → Docker build backend+frontend → smoke-test all API endpoints — main branch only
 - Self-hosted runner — no cloud compute
 
 ### Layer 2A — Apache Airflow (Data Orchestration)
@@ -108,8 +104,8 @@ Eight services: `mlflow`, `backend`, `frontend`, `airflow`, `prometheus`, `grafa
 - FastAPI exposes `/metrics` in Prometheus text format; Prometheus scrapes every 10s
 - Pushgateway receives batch-job metrics from: training, evaluation, Airflow DAG, Streamlit UI
 - All 5 system components instrumented
-- **Grafana** (port 3001): 7-panel dashboard auto-provisioned from JSON — Request Rate, Error Rate, Feedback Count, Drift Score, Latency Percentiles (P50/P95/P99), Model Info, Alert Firing History
-- **Alertmanager** (port 9093): 11 alert rules including `HighErrorRate > 5%` and `DataDriftDetected` (matching rubric); email routing via Gmail SMTP
+- **Grafana** (port 3001): 8-panel dashboard auto-provisioned from JSON — Request Rate (req/s), Model Loaded, Predictions by Category, Total Requests, Latency Percentiles (P50/P95/P99), Airflow Drift Flag, Alerts Fired by Name, Recent Email Alerts
+- **Alertmanager** (port 9093): 11 alert rules including `HighErrorRate > 5%` and `DataDriftDetected` (matching rubric §E); email routing via Gmail SMTP. Alert state cleanup: `pipeline_complete` task in Airflow waits 75 s after a drift-positive run (Prometheus scrape ≤15 s + rule eval ≤15 s + Alertmanager `group_wait` 30 s) before resetting the drift gauge to 0, ensuring exactly one email per drift event without re-notifications. CI skips this wait via the `GITHUB_ACTIONS=true` env flag
 
 ## Design Principles
 
