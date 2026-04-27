@@ -1,18 +1,18 @@
-# ── Shared volumes ─────────────────────────────────────────────────────────────
+# named volumes
 volumes:
   airflow_db:
   prometheus_data:
   grafana_data:
-  pushgateway_data:      # persists Pushgateway metrics across restarts
+  pushgateway_data:
 
-# ── Shared network ─────────────────────────────────────────────────────────────
+# bridge network shared by all services
 networks:
   spendsense:
     driver: bridge
 
 services:
 
-  # ── 1. MLflow Tracking Server ────────────────────────────────────────────────
+  # mlflow tracking server (port 5000)
   mlflow:
     image: ghcr.io/mlflow/mlflow:v3.11.1
     container_name: spendsense_mlflow
@@ -36,7 +36,7 @@ services:
       retries: 5
       start_period: 30s
 
-  # ── 2. FastAPI Backend ───────────────────────────────────────────────────────
+  # fastapi backend (port 8000)
   backend:
     build:
       context: .
@@ -48,7 +48,7 @@ services:
     volumes:
       - ./data:/app/data:ro
       - ./models:/app/models:ro
-      - ./feedback:/app/feedback   # persists POST /feedback data across restarts
+      - ./feedback:/app/feedback
     environment:
       - MLFLOW_TRACKING_URI=http://mlflow:5000
       - MODEL_PATH=/app/models/latest_model.pt
@@ -66,7 +66,7 @@ services:
       retries: 5
       start_period: 30s
 
-  # ── 3. Streamlit Frontend ────────────────────────────────────────────────────
+  # streamlit frontend (port 8501)
   frontend:
     build:
       context: .
@@ -87,7 +87,7 @@ services:
       backend:
         condition: service_healthy
 
-  # ── 4. Apache Airflow (standalone / LocalExecutor) ───────────────────────────
+  # airflow standalone with LocalExecutor (port 8080)
   airflow:
     build:
       context: .
@@ -108,9 +108,7 @@ services:
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
       - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=False
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////opt/airflow/airflow.db
-      # Enable Basic Auth on the REST API (for CI + Streamlit) while
-      # keeping session-cookie auth for the web UI. Without this, Airflow
-      # 2.9 defaults to session-only and silently rejects Basic Auth → 403.
+      # allow both basic auth (CI/REST) and session auth (web UI)
       - AIRFLOW__API__AUTH_BACKENDS=airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session
       - PROJECT_ROOT=/opt/airflow/project
       - PUSHGATEWAY_URL=http://pushgateway:9091
@@ -118,13 +116,10 @@ services:
       - GITHUB_REPO=r1sha13h/DA5402_Project
       - GITHUB_ACTIONS=${GITHUB_ACTIONS:-false}
       - LOCAL_DVC_REPRO=${LOCAL_DVC_REPRO:-false}
-    # Remove stale webserver PID file left over from prior container runs
-    # (the airflow_db named volume persists /opt/airflow across restarts). A
-    # leftover airflow-webserver.pid trips the standalone supervisor into
-    # spawning duplicate gunicorn masters that never bind port 8080.
+    # clean up stale PID files before start — the volume keeps them around across restarts
     command: bash -c "rm -f /opt/airflow/airflow-webserver.pid /opt/airflow/airflow-scheduler.pid /opt/airflow/airflow-triggerer.pid && airflow db migrate && airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@spendsense.local || true && airflow standalone"
 
-  # ── 5. Alertmanager ──────────────────────────────────────────────────────────
+  # alertmanager — email alerts (port 9093)
   alertmanager:
     image: prom/alertmanager:v0.27.0
     container_name: spendsense_alertmanager
@@ -144,7 +139,7 @@ services:
       retries: 3
       start_period: 15s
 
-  # ── 6. Prometheus Pushgateway ────────────────────────────────────────────────
+  # pushgateway — receives metrics from batch jobs (port 9091)
   pushgateway:
     image: prom/pushgateway:v1.8.0
     container_name: spendsense_pushgateway
@@ -163,7 +158,7 @@ services:
       retries: 3
       start_period: 10s
 
-  # ── 7. Prometheus ────────────────────────────────────────────────────────────
+  # prometheus — scrapes all services every 10s (port 9090)
   prometheus:
     image: prom/prometheus:v2.52.0
     container_name: spendsense_prometheus
@@ -178,7 +173,7 @@ services:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.retention.time=7d"
 
-  # ── 8. Grafana ───────────────────────────────────────────────────────────────
+  # grafana dashboard (port 3001 → container 3000)
   grafana:
     image: grafana/grafana:10.4.3
     container_name: spendsense_grafana

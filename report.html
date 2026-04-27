@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SpendSense — Project Report</title>
+<style>
+  /* ── Page & Print ── */
+  @page { size: A4; margin: 25mm 20mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Georgia", "Times New Roman", serif;
+    font-size: 11pt;
+    line-height: 1.65;
+    color: #1a1a1a;
+    background: #fff;
+    max-width: 210mm;
+    margin: 0 auto;
+    padding: 30px 40px;
+  }
+
+  /* ── Cover ── */
+  .cover {
+    text-align: center;
+    padding: 60px 0 50px;
+    border-bottom: 2px solid #2c3e50;
+    margin-bottom: 40px;
+    page-break-after: always;
+  }
+  .cover h1 { font-size: 28pt; color: #2c3e50; letter-spacing: 1px; margin-bottom: 8px; }
+  .cover .subtitle { font-size: 13pt; color: #555; font-style: italic; margin-bottom: 30px; }
+  .cover .meta { font-size: 10pt; color: #666; line-height: 2; }
+  .cover .meta strong { color: #2c3e50; }
+
+  /* ── TOC ── */
+  .toc { margin-bottom: 40px; page-break-after: always; }
+  .toc h2 { font-size: 14pt; border-bottom: 1px solid #aaa; padding-bottom: 6px; margin-bottom: 14px; color: #2c3e50; }
+  .toc ol { padding-left: 22px; }
+  .toc li { margin: 4px 0; font-size: 10.5pt; }
+  .toc a { color: #2c3e50; text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+
+  /* ── Headings ── */
+  h1 { font-size: 20pt; color: #2c3e50; margin: 36px 0 10px; border-bottom: 2px solid #2c3e50; padding-bottom: 6px; }
+  h2 { font-size: 15pt; color: #2c3e50; margin: 30px 0 10px; border-bottom: 1px solid #bdc3c7; padding-bottom: 4px; }
+  h3 { font-size: 12pt; color: #34495e; margin: 20px 0 8px; }
+  h4 { font-size: 11pt; color: #555; margin: 14px 0 6px; font-style: italic; }
+
+  /* ── Paragraphs & Lists ── */
+  p { margin: 8px 0 12px; text-align: justify; }
+  ul, ol { padding-left: 22px; margin: 8px 0 12px; }
+  li { margin: 4px 0; }
+
+  /* ── Code ── */
+  code {
+    font-family: "Courier New", Courier, monospace;
+    font-size: 9.5pt;
+    background: #f4f4f4;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    padding: 1px 5px;
+  }
+  pre {
+    font-family: "Courier New", Courier, monospace;
+    font-size: 8.5pt;
+    background: #f8f8f8;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 12px 14px;
+    overflow-x: auto;
+    white-space: pre;
+    margin: 12px 0;
+    line-height: 1.4;
+  }
+  pre code { background: none; border: none; padding: 0; font-size: inherit; }
+
+  /* ── Tables ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0 18px;
+    font-size: 10pt;
+    page-break-inside: avoid;
+  }
+  th {
+    background: #2c3e50;
+    color: #fff;
+    padding: 7px 10px;
+    text-align: left;
+    font-weight: bold;
+  }
+  td { padding: 6px 10px; border-bottom: 1px solid #ddd; vertical-align: top; }
+  tr:nth-child(even) td { background: #f9f9f9; }
+  tr:last-child td { border-bottom: 2px solid #bdc3c7; }
+
+  /* ── Images ── */
+  .img-block { text-align: center; margin: 18px 0; page-break-inside: avoid; }
+  .img-block img { max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 4px; }
+  .img-block figcaption { font-size: 9pt; color: #666; font-style: italic; margin-top: 5px; }
+
+  /* ── Horizontal Rule ── */
+  hr { border: none; border-top: 1px solid #ddd; margin: 28px 0; }
+
+  /* ── Highlight box ── */
+  .note { background: #eaf4fb; border-left: 4px solid #3498db; padding: 10px 14px; margin: 12px 0; font-size: 10pt; }
+
+  /* ── Print overrides ── */
+  @media print {
+    body { padding: 0; }
+    a { color: inherit; text-decoration: none; }
+    pre { white-space: pre-wrap; }
+    .cover { page-break-after: always; }
+    .toc { page-break-after: always; }
+    h1, h2, h3 { page-break-after: avoid; }
+    table, figure, .img-block { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════ COVER ═══════════════════════ -->
+<div class="cover">
+  <h1>SpendSense</h1>
+  <div class="subtitle">Personal Expense Category Classifier — MLOps Project Report</div>
+  <div class="meta">
+    <strong>Course:</strong> DA5402 — Machine Learning Operations<br>
+    <strong>Institution:</strong> Indian Institute of Technology Madras<br>
+    <strong>Dataset:</strong> HuggingFace <em>nickmuchi/financial-classification</em> (~4.5M transactions)<br>
+    <strong>Model:</strong> BiLSTM (INT8 Quantized) · 10 Expense Categories<br>
+    <strong>Test Macro F1:</strong> 98.69% &nbsp;|&nbsp; <strong>Test Accuracy:</strong> 98.69%<br>
+    <strong>CI Run:</strong> 68/68 tests pass · Coverage ~70% · Wall-clock ~13 min
+  </div>
+</div>
+
+<!-- ═══════════════════════ TABLE OF CONTENTS ═══════════════════════ -->
+<div class="toc">
+  <h2>Table of Contents</h2>
+  <ol>
+    <li><a href="#what-it-does">What It Does</a></li>
+    <li><a href="#system-architecture">System Architecture</a>
+      <ul>
+        <li><a href="#layer1">Layer 1 — GitHub Actions (CI/CD Pipeline)</a></li>
+        <li><a href="#layer2a">Layer 2A — Apache Airflow (Periodic Drift Detection)</a></li>
+        <li><a href="#layer2b">Layer 2B — DVC (Reproducible ML Pipeline)</a></li>
+        <li><a href="#layer3">Layer 3 — MLflow (Experiment Tracking)</a></li>
+        <li><a href="#layer4">Layer 4 — docker-compose (Runtime Services)</a></li>
+      </ul>
+    </li>
+    <li><a href="#connections">How All the Pieces Connect</a></li>
+    <li><a href="#dataflow">Data Flow</a></li>
+    <li><a href="#hld">High Level Design Summary</a></li>
+    <li><a href="#model">ML Model</a></li>
+    <li><a href="#categories">Expense Categories</a></li>
+    <li><a href="#cicd">CI/CD Design</a></li>
+    <li><a href="#feedback">Feedback Loop &amp; Drift Detection</a></li>
+    <li><a href="#acceptance">Acceptance Criteria</a></li>
+    <li><a href="#testreport">Test Report Summary</a></li>
+    <li><a href="#metrics">Training &amp; Evaluation Metrics</a></li>
+    <li><a href="#coverage">Code Coverage Report</a></li>
+    <li><a href="#bugs">Major Problems &amp; Critical Bugs</a></li>
+    <li><a href="#design">Design &amp; Implementation Choices</a></li>
+  </ol>
+</div>
+
+<!-- ═══════════════════════ SECTIONS ═══════════════════════ -->
+
+<h1 id="what-it-does">1. What It Does</h1>
+<p>SpendSense reads a bank transaction description (e.g. <code>UPI-ZEPTO-ZEPTOONLINE@YBL-YESB0YBLUPI-606266723117-UPI</code>) and automatically classifies it into one of 10 spending categories like Food &amp; Dining, Transportation, Shopping, etc. In this case, the transaction would be classified as <em>Food &amp; Dining</em>.</p>
+<p>It is built with a full MLOps stack so the model can retrain itself when data patterns change.</p>
+
+<hr>
+
+<h1 id="system-architecture">2. System Architecture</h1>
+<div class="img-block">
+  <img src="images/system_architecture.png" alt="System Architecture">
+  <figcaption>Figure 1 — End-to-end system architecture</figcaption>
+</div>
+
+<h2 id="layer1">Layer 1 — GitHub Actions (CI/CD Pipeline)</h2>
+<p>Every time code is pushed to <code>main</code>, GitHub Actions runs three jobs automatically:</p>
+<ul>
+  <li><strong>Job 1</strong> (~30s): Checks code style (flake8) and runs all unit tests. Runs on every branch.</li>
+  <li><strong>Job 2</strong> (~11.5 min): DVC Run 1 trains the model on 90% of data, keeping the remaining 10% as drifted data. DVC Run 2 triggers Airflow to validate data and check for drift using the 10% drifted data, then re-trains on the combined original and drifted data (90%+10%) along with user feedback. Both runs are logged to MLflow along with their artifacts.</li>
+  <li><strong>Job 3</strong> (~1 min): Starts the backend and frontend in Docker and smoke-tests all API endpoints. Runs on the <code>main</code> branch only.</li>
+</ul>
+<p>Everything runs on a local GPU machine — no cloud services are used.</p>
+
+<h2 id="layer2a">Layer 2A — Apache Airflow (Periodic Drift Detection)</h2>
+<p>Airflow runs a pipeline every day to check if new transaction data looks different from what the model was trained on (called "data drift").</p>
+<p><strong>9-step pipeline:</strong></p>
+<div class="img-block">
+  <img src="images/airflow_dag.png" alt="Airflow DAG">
+  <figcaption>Figure 2 — Airflow 9-task DAG for daily data ingestion and drift detection</figcaption>
+</div>
+<p>If drift is detected (&gt;10 percentage-point shift in category distribution), it merges new data with the original training set and triggers retraining using the previous model as a starting point (warm start/fine-tuning).</p>
+
+<h2 id="layer2b">Layer 2B — DVC (Reproducible ML Pipeline)</h2>
+<p>DVC manages the four-stage ML pipeline and ensures every run is reproducible.</p>
+<div class="img-block">
+  <img src="images/dvc_dag.png" alt="DVC DAG">
+  <figcaption>Figure 3 — DVC 4-stage pipeline DAG</figcaption>
+</div>
+<p><strong>4 stages:</strong> <code>ingest → preprocess → train → evaluate</code></p>
+<ul>
+  <li>All settings (epochs, batch size, etc.) live in <code>params.yaml</code>.</li>
+  <li><code>dvc.lock</code> records a hash of every input and output — so you can always recreate any past result exactly.</li>
+  <li>Only changed stages re-run on <code>dvc repro</code>, saving time.</li>
+  <li><strong>Run 1 (base training):</strong> Full pipeline on the original dataset — <code>ingest</code> loads raw transactions, <code>preprocess</code> splits 70/15/15, <code>train</code> fits the BiLSTM from scratch, <code>evaluate</code> scores the held-out test split.</li>
+  <li><strong>Run 2 (fine-tune):</strong> Airflow merges user feedback into the training set, then the same pipeline runs again with <code>FINETUNE_MODEL_PATH</code> pointing to the Run 1 model — only 1 epoch of weight updates on the enlarged dataset instead of training from scratch.</li>
+</ul>
+
+<h2 id="layer3">Layer 3 — MLflow (Experiment Tracking)</h2>
+<p>MLflow acts as a logbook for every training run.</p>
+<ul>
+  <li>Records hyperparameters, per-epoch loss and F1 score, final test metrics, and a confusion matrix image.</li>
+  <li>Automatically registers each new trained model to the <code>Staging</code> stage in the model registry.</li>
+  <li>Runs in Docker on port 5000; data persists via a bind-mounted <code>mlruns/</code> folder.</li>
+</ul>
+
+<h2 id="layer4">Layer 4 — docker-compose (Runtime Services)</h2>
+<p>Eight containers run the full system: <code>mlflow</code>, <code>backend</code>, <code>frontend</code>, <code>airflow</code>, <code>prometheus</code>, <code>grafana</code>, <code>alertmanager</code>, <code>pushgateway</code>.</p>
+
+<h3>FastAPI Backend (port 8000)</h3>
+<p>The backend loads the trained model on startup and serves predictions via REST API.</p>
+<table>
+  <tr><th>Endpoint</th><th>What it does</th></tr>
+  <tr><td><code>POST /predict</code></td><td>Classify a single transaction description</td></tr>
+  <tr><td><code>POST /predict/batch</code></td><td>Classify many descriptions at once</td></tr>
+  <tr><td><code>POST /feedback</code></td><td>Submit a correction (actual vs predicted category)</td></tr>
+  <tr><td><code>GET /drift</code></td><td>Check if recent feedback shows distribution shift</td></tr>
+  <tr><td><code>GET /models</code></td><td>List all past training runs</td></tr>
+  <tr><td><code>POST /models/switch</code></td><td>Hot-swap to a different model version (no restart)</td></tr>
+  <tr><td><code>GET /health</code> / <code>GET /ready</code></td><td>Health checks</td></tr>
+  <tr><td><code>GET /metrics</code></td><td>Prometheus metrics endpoint</td></tr>
+</table>
+
+<h3>Streamlit Frontend (port 8501)</h3>
+<div class="img-block">
+  <img src="images/streamlit_frontend.png" alt="Streamlit Frontend">
+  <figcaption>Figure 4 — Streamlit frontend showing prediction and confidence chart</figcaption>
+</div>
+<p>Three pages accessible in the browser:</p>
+<ul>
+  <li><strong>Home:</strong> Type a transaction, get a category prediction, see a confidence chart, submit feedback.</li>
+  <li><strong>Batch Predict:</strong> Upload a CSV, paste multiple descriptions, or upload a bank statement (.xls/.xlsx) — get all predictions at once with a downloadable results table.</li>
+  <li><strong>Pipeline Status:</strong> Live health grid for all services, Prometheus metrics, DVC pipeline diagram, and Airflow run history.</li>
+</ul>
+
+<h3>Monitoring Stack</h3>
+<div class="img-block">
+  <img src="images/grafana_db.png" alt="Grafana Dashboard">
+  <figcaption>Figure 5a — Grafana 8-panel near-real-time dashboard</figcaption>
+</div>
+<table>
+  <tr><th>Tool</th><th>Port</th><th>Purpose</th></tr>
+  <tr><td>Prometheus</td><td>9090</td><td>Scrapes metrics from backend every 10s</td></tr>
+  <tr><td>Pushgateway</td><td>9091</td><td>Receives metrics from batch jobs (training, Airflow, etc.)</td></tr>
+  <tr><td>Grafana</td><td>3001</td><td>8-panel dashboard (latency, request rate, drift flag, alerts)</td></tr>
+  <tr><td>Alertmanager</td><td>9093</td><td>Fires email alerts for 11 rules (e.g. high error rate, drift detected)</td></tr>
+</table>
+<p>All 5 system components (backend, training, evaluation, Airflow, frontend) push or expose metrics. Alerts are sent via Gmail SMTP and resolve automatically once the triggering condition clears.</p>
+
+<hr>
+
+<hr>
+
+<h1 id="connections">3. How All the Pieces Connect</h1>
+<pre>
+User
+ │
+ ▼
+Streamlit Frontend (port 8501)
+ │  REST API calls via BACKEND_URL
+ ▼
+FastAPI Backend (port 8000)
+ │  loads artefacts from disk on startup
+ ▼
+BiLSTM Model + Vocab + LabelEncoder
+ │
+ ├── Prometheus /metrics → Prometheus (9090) → Grafana (3001)
+ ├── Pushgateway (9091) ← training, evaluation, Airflow, Streamlit
+ ├── Alertmanager (9093) → email alerts
+ ├── MLflow tracking → MLflow server (5000)
+ └── Data pipeline ← Airflow (8080) + DVC + GitHub Actions
+</pre>
+
+<hr>
+
+<h1 id="dataflow">4. Data Flow</h1>
+
+<ol>
+  <li><strong>Ingestion (Airflow):</strong> Loads raw transaction CSV, validates for missing/malformed data, checks if transaction patterns have shifted, merges new data with user corrections, saves clean data ready for training.</li>
+  <li><strong>Preprocessing (DVC):</strong> Converts transaction text into numbers (tokenization), builds a word dictionary (top 10K words), pads all sequences to length 50, splits data into train/validation/test sets (70/15/15), saves processed arrays and vocabulary.</li>
+  <li><strong>Training (DVC):</strong> Trains the BiLSTM neural network on the processed data (or fine-tunes from a previous model checkpoint), logs all hyperparameters and metrics to MLflow, automatically registers the best model as ready for production.</li>
+  <li><strong>Evaluation (DVC):</strong> Tests the trained model on held-out data, calculates accuracy and F1 score per category, fails the pipeline if F1 &lt; 70% (quality gate), saves detailed metrics and confusion matrix.</li>
+  <li><strong>Serving:</strong> Backend loads the trained model on startup, compresses it using INT8 quantization for ~4× memory savings, serves predictions through REST API endpoints (predict, batch-predict, feedback, drift check).</li>
+  <li><strong>Feedback Loop:</strong> Users submit corrections via <code>/feedback</code> → logged to <code>feedback.jsonl</code> → system detects if feedback shows &gt;10 percentage-point category shift → if detected, triggers retraining on combined original + feedback data.</li>
+  <li><strong>Monitoring:</strong> All components report metrics → Prometheus scrapes every 10s → Grafana displays live dashboard → Alertmanager sends email on anomalies.</li>
+</ol>
+
+<hr>
+
+<h1 id="hld">5. High Level Design Summary</h1>
+
+<div class="img-block">
+  <img src="images/hld_pipeline.png" alt="High Level Design Pipeline">
+  <figcaption>Figure 6 — High level design pipeline overview</figcaption>
+</div>
+
+<hr>
+
+<h1 id="model">6. ML Model</h1>
+<div class="img-block">
+  <img src="images/NN_Architecture.png" alt="Neural Network Architecture">
+  <figcaption>Figure 7 — BiLSTM neural network architecture</figcaption>
+</div>
+<ul>
+  <li><strong>Architecture:</strong> Bidirectional LSTM (2 layers, 256 hidden dim per direction → 512 effective)</li>
+  <li><strong>Input:</strong> Padded word-index sequence (length 50, vocab size 10,002)</li>
+  <li><strong>Embedding:</strong> 128-dim learned embeddings, PAD index zeroed</li>
+  <li><strong>Output:</strong> Softmax over 10 expense categories</li>
+  <li><strong>Training data:</strong> 4.5M raw transactions from HuggingFace <code>nickmuchi/financial-classification</code>; ~1.34M rows remain after dropping nulls, unknown categories, and duplicates</li>
+  <li><strong>Run 1:</strong> Full training from scratch on 90% of the cleaned corpus (~1.2M rows), logged as <code>bilstm_training</code></li>
+  <li><strong>Run 2:</strong> The remaining 10% (~134K rows) is a held-out batch that simulates newly arrived data with class distribution drift. Airflow checks it for drift, merges it with the 90% training set and the user feedback, then DVC fine-tunes for 1 more epoch from the Run-1 checkpoint, logged as <code>bilstm_finetune</code></li>
+  <li><strong>Performance:</strong> test macro F1 = 98.72%, test accuracy = 98.75%</li>
+  <li><strong>Inference:</strong> Dynamic INT8 quantization on LSTM and Linear layers at load time (~4× memory reduction)</li>
+</ul>
+
+<hr>
+
+<h1 id="categories">7. Expense Categories (10 classes)</h1>
+<table>
+  <tr><th>Category</th><th>Examples</th></tr>
+  <tr><td>Food &amp; Dining</td><td>Zomato, Swiggy, restaurant bill</td></tr>
+  <tr><td>Transportation</td><td>Uber, Ola, petrol pump</td></tr>
+  <tr><td>Utilities &amp; Services</td><td>BESCOM bill, Jio recharge, internet</td></tr>
+  <tr><td>Entertainment &amp; Recreation</td><td>Netflix, BookMyShow, gaming</td></tr>
+  <tr><td>Shopping &amp; Retail</td><td>Amazon, Flipkart, Myntra</td></tr>
+  <tr><td>Healthcare &amp; Medical</td><td>Apollo pharmacy, lab tests</td></tr>
+  <tr><td>Financial Services</td><td>Credit card payment, SIP, LIC premium</td></tr>
+  <tr><td>Income</td><td>Salary, freelance payment, refund</td></tr>
+  <tr><td>Government &amp; Legal</td><td>Tax payment, passport fees, court fees</td></tr>
+  <tr><td>Charity &amp; Donations</td><td>NGO donation, temple donation</td></tr>
+</table>
+
+<hr>
+
+<h1 id="cicd">8. CI/CD Design</h1>
+<div class="img-block">
+  <img src="images/ci_cd_pipeline.png" alt="CI/CD Pipeline">
+  <figcaption>Figure 8 — 3-job GitHub Actions CI/CD pipeline</figcaption>
+</div>
+<p>Every push to <code>main</code> triggers a 3-job automated pipeline that takes ~13 minutes end to end.</p>
+<p><strong>Job 1 (~30s) — runs on every branch:</strong> Checks code style with flake8 and runs all 68 unit tests. Fails if code coverage drops below 60%.</p>
+<p><strong>Job 2 (~11.5 min) — main branch only:</strong> This is the full ML pipeline. First, the 1.34M cleaned rows are split 90/10 — the 10% is the drift batch. Docker infrastructure services (MLflow, Prometheus, Grafana, Alertmanager, Pushgateway) are started. DVC Run 1 trains the model on the 90% data and must pass an F1 ≥ 0.70 gate. Then Airflow is triggered: it validates the 10% drift batch, detects the distribution shift, and merges it with the 90% data plus any collected user feedback. DVC Run 2 fine-tunes the model (from Run 1 checkpoint) on this combined dataset for 1 epoch. Trained artifacts are saved locally for Job 3.</p>
+<p><strong>Job 3 (~1 min) — main branch only:</strong> Picks up the saved artifacts, starts the backend and frontend inside Docker, and smoke-tests all API endpoints to confirm the full system is working end to end.</p>
+
+<hr>
+
+<h1 id="feedback">9. Feedback Loop &amp; Drift Detection</h1>
+<div class="img-block">
+  <img src="images/frontend_category_correction.png" alt="Frontend Category Correction">
+  <figcaption>Figure 9 — Frontend UI for submitting category corrections</figcaption>
+</div>
+<p>When the model misclassifies a transaction, the user can correct it directly from the frontend. Each correction is saved and accumulates over time. The system periodically checks whether the corrections reveal a pattern — specifically, if any spending category has shifted by more than 10 percentage points from the original distribution. When such a shift is detected, the model is automatically retrained on the combined original data plus all collected corrections, so it adapts to real user behaviour without any manual intervention.</p>
+
+<hr>
+
+<h1 id="acceptance">10. Acceptance Criteria</h1>
+<table>
+  <tr><th>Criterion</th><th>Threshold</th><th>Status</th></tr>
+  <tr><td>Test macro F1-score</td><td>≥ 0.70</td><td>Achieved: 98.72%</td></tr>
+  <tr><td>Test accuracy</td><td>≥ 0.70</td><td>Achieved: 98.75%</td></tr>
+  <tr><td>API latency (p95)</td><td>&lt; 200ms</td><td>Verified via Prometheus histogram</td></tr>
+  <tr><td>Unit test suite</td><td>All tests pass (0 failures)</td><td>68/68 pass</td></tr>
+  <tr><td>Code coverage</td><td>≥ 60% (CI gate)</td><td>~70% observed; CI gate enforced with <code>--cov-fail-under=60</code></td></tr>
+  <tr><td>Error rate in production</td><td>&lt; 5%</td><td>Alertmanager <code>HighErrorRate</code> alert fires at &gt; 5%</td></tr>
+</table>
+
+<hr>
+
+<h1 id="testreport">11. Test Report Summary</h1>
+<table>
+  <tr><th>Category</th><th>Total</th><th>Passed</th><th>Failed</th></tr>
+  <tr><td>Unit tests (pytest, 5 files)</td><td>68</td><td>68</td><td>0</td></tr>
+  <tr><td>Integration tests (S1–S8)</td><td>8</td><td>8</td><td>0</td></tr>
+  <tr><td><strong>Total</strong></td><td><strong>76</strong></td><td><strong>76</strong></td><td><strong>0</strong></td></tr>
+</table>
+
+<hr>
+
+<h1 id="metrics">12. Training &amp; Evaluation Metrics</h1>
+<p>Metrics are evaluated on the held-out 15% test split of ~1.34M cleaned rows.</p>
+
+<h2>Overall</h2>
+<table>
+  <tr><th>Metric</th><th>Value</th></tr>
+  <tr><td>Test Macro F1</td><td><strong>98.69%</strong></td></tr>
+  <tr><td>Test Weighted F1</td><td><strong>98.69%</strong></td></tr>
+  <tr><td>Test Accuracy</td><td><strong>98.69%</strong></td></tr>
+</table>
+
+<h2>Per-Class F1 Scores</h2>
+<table>
+  <tr><th>Category</th><th>F1 Score</th><th>Notes</th></tr>
+  <tr><td>Charity &amp; Donations</td><td>99.99%</td><td>Near-perfect — highly distinctive vocabulary</td></tr>
+  <tr><td>Entertainment &amp; Recreation</td><td>99.99%</td><td>Near-perfect</td></tr>
+  <tr><td>Financial Services</td><td>99.99%</td><td>Near-perfect</td></tr>
+  <tr><td>Transportation</td><td>99.29%</td><td>Excellent</td></tr>
+  <tr><td>Utilities &amp; Services</td><td>99.32%</td><td>Excellent</td></tr>
+  <tr><td>Food &amp; Dining</td><td>99.31%</td><td>Excellent</td></tr>
+  <tr><td>Income</td><td>98.84%</td><td>Strong</td></tr>
+  <tr><td>Government &amp; Legal</td><td>97.78%</td><td>Small overlap with Financial Services</td></tr>
+  <tr><td>Healthcare &amp; Medical</td><td>96.96%</td><td>Some confusion with Shopping &amp; Retail</td></tr>
+  <tr><td>Shopping &amp; Retail</td><td>95.45%</td><td>Lowest — broad category, overlaps with Entertainment</td></tr>
+</table>
+<p>Shopping &amp; Retail has the lowest F1 (95.45%) because it is the broadest category — some Entertainment and Healthcare transactions share similar merchant naming patterns. Government &amp; Legal and Healthcare &amp; Medical show minor mutual confusion in the confusion matrix.</p>
+
+<h2>Confusion Matrix</h2>
+<div class="img-block">
+  <img src="images/confusion_matrix.png" alt="Confusion Matrix">
+  <figcaption>Figure 10 — Confusion matrix on the 15% held-out test set</figcaption>
+</div>
+<p>The diagonal is overwhelmingly dominant. The main off-diagonal clusters are Shopping &amp; Retail ↔ Entertainment &amp; Recreation and Healthcare &amp; Medical ↔ Shopping &amp; Retail, reflecting overlapping merchant types (gyms, pharmacies, general online retailers).</p>
+
+<hr>
+
+<h1 id="coverage">13. Code Coverage Report</h1>
+<p>Coverage from the latest CI run (<code>pytest --cov=src --cov=backend --cov-fail-under=60</code>):</p>
+<table>
+  <tr><th>Module</th><th>Statements</th><th>Missed</th><th>Coverage</th></tr>
+  <tr><td><code>backend/app/schemas.py</code></td><td>36</td><td>0</td><td><strong>100%</strong></td></tr>
+  <tr><td><code>src/models/model.py</code></td><td>19</td><td>0</td><td><strong>100%</strong></td></tr>
+  <tr><td><code>backend/app/monitoring.py</code></td><td>18</td><td>1</td><td>94%</td></tr>
+  <tr><td><code>src/data/preprocess.py</code></td><td>88</td><td>6</td><td>93%</td></tr>
+  <tr><td><code>src/data/ingest.py</code></td><td>68</td><td>9</td><td>87%</td></tr>
+  <tr><td><code>backend/app/main.py</code></td><td>151</td><td>56</td><td>63%</td></tr>
+  <tr><td><code>backend/app/predictor.py</code></td><td>157</td><td>89</td><td>43%</td></tr>
+  <tr><td><strong>TOTAL</strong></td><td><strong>537</strong></td><td><strong>161</strong></td><td><strong>70%</strong></td></tr>
+</table>
+<p>The CI gate is 60% and the build achieves 70%. <code>predictor.py</code> scores lowest (43%) — the MLflow download paths need a live server, so they are tested with mocks only. <code>train.py</code> and <code>evaluate.py</code> are excluded entirely because they need a full GPU pipeline run to execute meaningfully.</p>
+
+<hr>
+
+<h1 id="bugs">14. Major Problems &amp; Critical Bugs</h1>
+
+<h3>1. Airflow REST API returning 403</h3>
+<p>Airflow 2.9 only accepts session auth by default. CI's Basic Auth trigger was silently rejected. Fix: set <code>AIRFLOW__API__AUTH_BACKENDS=basic_auth,session</code> and <code>DAGS_ARE_PAUSED_AT_CREATION=False</code> on the Airflow service — without the second, freshly registered DAGs start paused and runs stay queued forever.</p>
+
+<h3>2. DataDriftDetected alert never fired</h3>
+<p>Airflow tasks push metrics one by one. The last task was unknowingly overwriting the drift metric set by an earlier task, so the alert never saw it. The issue was that <code>push_to_gateway</code> replaces everything on each push. Switching to <code>pushadd_to_gateway</code> fixes it — each push only updates its own metrics and leaves the rest untouched.</p>
+
+<h3>3. File Permission Error in Airflow Container</h3>
+<p>Airflow runs as a different system user than DVC. When Airflow tried to overwrite files written by DVC, it was blocked. The fix is to delete the folder entirely and recreate it fresh before writing — since the folder itself is open to all users, this sidesteps the permission issue.</p>
+
+<h3>4. CI Artifact Transfer Between Jobs Was Slow</h3>
+<p>GitHub's upload/download artifact API added 40+ seconds for the ~30 MB model payload. Fix: since the runner is self-hosted (same machine), stage files to <code>$HOME/ss-ci-$GITHUB_RUN_ID/</code> and copy with <code>cp</code> instead. (<code>$RUNNER_TEMP</code> is wiped between jobs — <code>$HOME</code> persists.)</p>
+
+<h3>5. Streamlit Example Button Not Pre-filling Input</h3>
+<p>Example buttons on the Home page sometimes didn't pre-fill the input. <code>session_state.pop()</code> was clearing the value before the form re-rendered. Fix: read with <code>session_state.get()</code> and only call <code>pop()</code> inside <code>if submitted:</code> — so the value persists through the button-click rerun.</p>
+
+<hr>
+
+<h1 id="design">15. Design &amp; Implementation Choices</h1>
+
+<h3>Why Pushgateway instead of direct Prometheus scraping?</h3>
+<p>Prometheus pulls metrics from a live <code>/metrics</code> endpoint. Long-running services like the FastAPI backend expose one natively. But batch jobs — DVC training, evaluation, Airflow tasks — exit after a few minutes, long before Prometheus next scrapes. Pushgateway acts as a persistent store: jobs push metrics to it on completion, and Prometheus scrapes the gateway. This is the standard pattern for monitoring batch ML pipelines.</p>
+
+<h3>Why FastAPI instead of MLflow's built-in serving?</h3>
+<p>MLflow's built-in server (<code>mlflow models serve</code>) exposes a single fixed <code>/invocations</code> endpoint. It provides no control over response shape, Prometheus metrics, feedback collection, drift detection, model hot-swap, or health probes. FastAPI gives full control over all 9 endpoints. MLflow is still used for what it does best — experiment tracking and the model registry. The <code>POST /models/switch</code> endpoint satisfies "MLflow APIification" by downloading and hot-swapping any MLflow run's model without a container restart.</p>
+
+<h3>Why GitHub Actions for CI/CD?</h3>
+<p>GitHub Actions triggers automatically on push with no external webhook setup. Its self-hosted runner flag lets the same YAML run on a local GPU machine, avoiding cloud costs while keeping full CI capability. The <code>needs:</code> dependency key enforces strict job ordering — Job 3 never runs unless Job 2 passes. Secrets (<code>ALERTMANAGER_SMTP_PASSWORD</code>, <code>GITHUB_PAT</code>) are stored in GitHub's secrets vault and injected at runtime, never hardcoded.</p>
+
+<h3>Why CI/CD at all?</h3>
+<p>Without CI, quality checks are manual and routinely skipped under time pressure. Three automated gates enforce correctness on every push:</p>
+<ul>
+  <li><strong>Code quality (Job 1):</strong> flake8 + 60% coverage — fails before any GPU time is spent.</li>
+  <li><strong>ML quality (Job 2):</strong> <code>test_f1_macro &lt; 0.70</code> fails the build — the broken model never reaches the app.</li>
+  <li><strong>Integration (Job 3):</strong> smoke tests verify the model actually loads and serves — catching packaging errors that metric checks alone miss.</li>
+</ul>
+
+<h3>Why BiLSTM instead of a Transformer?</h3>
+<p>Transaction descriptions are short (typically 3–8 tokens after prefix stripping) and do not require long-range attention. BiLSTM captures bidirectional context efficiently at far lower parameter count and inference cost. Transformers would require a pretrained model (BERT/DistilBERT) and GPU memory at inference time — both are constraints on a local on-prem deployment. The 98.69% macro F1 shows BiLSTM is more than sufficient for this task.</p>
+
+<h3>Why DVC for the ML pipeline instead of plain shell scripts?</h3>
+<p>DVC tracks input/output MD5 hashes for every stage. If the data and code haven't changed, it skips the stage — this makes <code>dvc repro</code> idempotent and fast. Each stage's outputs are cached and versioned alongside the Git commit, so any prior pipeline state is reproducible with <code>git checkout &lt;sha&gt; &amp;&amp; dvc checkout</code>. Plain shell scripts provide none of this: they re-run everything every time and have no version linkage to data or models.</p>
+
+<h3>Why two separate DVC runs?</h3>
+<p>Run 1 trains a baseline model on the 90% data slice — it needs to converge from scratch. The 10% drift batch exists specifically to simulate newly arrived data that was not seen during initial training. Running Airflow between the two runs demonstrates the full production loop: drift detection → data merge → fine-tuning. If both runs used the same data, there would be no meaningful difference to show, and the retraining trigger would be synthetic rather than data-driven.</p>
+
+<h3>Why Airflow in addition to DVC?</h3>
+<p>DVC manages the ML pipeline (training, evaluation, versioning). Airflow manages the <em>data</em> pipeline — the daily scheduled work of fetching new data, validating it, checking for drift, and deciding whether to trigger retraining. These are fundamentally different concerns: DVC is content-addressed and reproducible; Airflow is time-driven and event-driven. Combining both means the ML pipeline is reproducible and the data pipeline is observable, schedulable, and auditable.</p>
+
+<h3>Why separate containers for each service?</h3>
+<p>Strict container separation means each service can be restarted, upgraded, or replaced independently. The backend container can be rebuilt with a new model without touching Prometheus or Grafana. Airflow can be wiped and rebuilt (clearing its DB) without affecting the MLflow run history. This also mirrors production patterns where services scale independently and have separate lifecycle management.</p>
+
+</body>
+</html>

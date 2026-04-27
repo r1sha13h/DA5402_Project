@@ -50,3 +50,8 @@ actions-runner/
 
 # Environment secrets
 .env
+
+# Local/private files
+.claude
+CLAUDE.md
+docs_git_ignore/
