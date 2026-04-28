@@ -13,11 +13,11 @@
 
 ## Docs
 
-- [docs/architecture.md](docs/architecture.md)
-- [docs/hld.md](docs/hld.md)
-- [docs/lld.md](docs/lld.md)
-- [docs/test_plan.md](docs/test_plan.md)
-- [docs/user_manual.md](docs/user_manual.md)
+- [Architecture](docs/architecture.md)
+- [High Level Design](docs/hld.md)
+- [Low Level Design](docs/lld.md)
+- [Test Plan](docs/test_plan.md)
+- [User Manual](docs/user_manual.md)
 
 ---
 

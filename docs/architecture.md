@@ -54,6 +54,8 @@ SpendSense is a neural-network-based personal expense classifier that automatica
                 └───────────────────────────────────────────────────────┘
 ```
 
+![System Architecture](../images/system_architecture.png)
+
 ## Layer Descriptions
 
 ### Layer 1 — GitHub Actions (Outer CI/CD Orchestrator)

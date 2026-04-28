@@ -32,6 +32,8 @@ BiLSTM Model + Vocab + LabelEncoder
  └── Data pipeline ← Airflow (8080) + DVC + GitHub Actions
 ```
 
+![High Level Design Pipeline](../images/hld_pipeline.png)
+
 ## 4. Data Flow
 
 1. **Ingestion (Airflow):** Loads raw transaction CSV, validates for missing/malformed data, checks if transaction patterns have shifted, merges new data with user corrections, saves clean data ready for training.
