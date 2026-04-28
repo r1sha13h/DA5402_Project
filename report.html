@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SpendSense — Project Report</title>
 <style>
-  /* ── Page & Print ── */
   @page { size: A4; margin: 25mm 20mm; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -13,7 +12,7 @@
     font-size: 11pt;
     line-height: 1.65;
     color: #1a1a1a;
-    background: #fff;
+    background: #eef4fb;
     max-width: 210mm;
     margin: 0 auto;
     padding: 30px 40px;
@@ -23,27 +22,29 @@
   .cover {
     text-align: center;
     padding: 60px 0 50px;
-    border-bottom: 2px solid #2c3e50;
+    border-bottom: 2px solid #2c5282;
     margin-bottom: 40px;
     page-break-after: always;
+    background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%);
+    border-radius: 8px;
   }
-  .cover h1 { font-size: 28pt; color: #2c3e50; letter-spacing: 1px; margin-bottom: 8px; }
-  .cover .subtitle { font-size: 13pt; color: #555; font-style: italic; margin-bottom: 30px; }
-  .cover .meta { font-size: 10pt; color: #666; line-height: 2; }
-  .cover .meta strong { color: #2c3e50; }
+  .cover h1 { font-size: 28pt; color: #1e3a5f; letter-spacing: 1px; margin-bottom: 8px; }
+  .cover .subtitle { font-size: 13pt; color: #4a6fa5; font-style: italic; margin-bottom: 30px; }
+  .cover .meta { font-size: 10pt; color: #555; line-height: 2; }
+  .cover .meta strong { color: #2c5282; }
 
   /* ── TOC ── */
-  .toc { margin-bottom: 40px; page-break-after: always; }
-  .toc h2 { font-size: 14pt; border-bottom: 1px solid #aaa; padding-bottom: 6px; margin-bottom: 14px; color: #2c3e50; }
+  .toc { margin-bottom: 40px; page-break-after: always; background: #f0f7ff; border-radius: 6px; padding: 20px 24px; border: 1px solid #c3dafe; }
+  .toc h2 { font-size: 14pt; border-bottom: 1px solid #93c5fd; padding-bottom: 6px; margin-bottom: 14px; color: #1e3a5f; }
   .toc ol { padding-left: 22px; }
   .toc li { margin: 4px 0; font-size: 10.5pt; }
-  .toc a { color: #2c3e50; text-decoration: none; }
+  .toc a { color: #2563eb; text-decoration: none; }
   .toc a:hover { text-decoration: underline; }
 
   /* ── Headings ── */
-  h1 { font-size: 20pt; color: #2c3e50; margin: 36px 0 10px; border-bottom: 2px solid #2c3e50; padding-bottom: 6px; }
-  h2 { font-size: 15pt; color: #2c3e50; margin: 30px 0 10px; border-bottom: 1px solid #bdc3c7; padding-bottom: 4px; }
-  h3 { font-size: 12pt; color: #34495e; margin: 20px 0 8px; }
+  h1 { font-size: 20pt; color: #1e3a5f; margin: 36px 0 10px; border-bottom: 2px solid #3b82f6; padding-bottom: 6px; }
+  h2 { font-size: 15pt; color: #2c5282; margin: 30px 0 10px; border-bottom: 1px solid #93c5fd; padding-bottom: 4px; }
+  h3 { font-size: 12pt; color: #1d4ed8; margin: 20px 0 8px; }
   h4 { font-size: 11pt; color: #555; margin: 14px 0 6px; font-style: italic; }
 
   /* ── Paragraphs & Lists ── */
@@ -55,16 +56,16 @@
   code {
     font-family: "Courier New", Courier, monospace;
     font-size: 9.5pt;
-    background: #f4f4f4;
-    border: 1px solid #ddd;
+    background: #dbeafe;
+    border: 1px solid #bfdbfe;
     border-radius: 3px;
     padding: 1px 5px;
   }
   pre {
     font-family: "Courier New", Courier, monospace;
     font-size: 8.5pt;
-    background: #f8f8f8;
-    border: 1px solid #ccc;
+    background: #f0f7ff;
+    border: 1px solid #bfdbfe;
     border-radius: 4px;
     padding: 12px 14px;
     overflow-x: auto;
@@ -83,33 +84,36 @@
     page-break-inside: avoid;
   }
   th {
-    background: #2c3e50;
+    background: #1e3a5f;
     color: #fff;
     padding: 7px 10px;
     text-align: left;
     font-weight: bold;
   }
-  td { padding: 6px 10px; border-bottom: 1px solid #ddd; vertical-align: top; }
-  tr:nth-child(even) td { background: #f9f9f9; }
-  tr:last-child td { border-bottom: 2px solid #bdc3c7; }
+  td { padding: 6px 10px; border-bottom: 1px solid #bfdbfe; vertical-align: top; }
+  tr:nth-child(even) td { background: #eff6ff; }
+  tr:last-child td { border-bottom: 2px solid #93c5fd; }
 
   /* ── Images ── */
   .img-block { text-align: center; margin: 18px 0; page-break-inside: avoid; }
-  .img-block img { max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 4px; }
-  .img-block figcaption { font-size: 9pt; color: #666; font-style: italic; margin-top: 5px; }
+  .img-block img { max-width: 100%; height: auto; border: 1px solid #bfdbfe; border-radius: 4px; }
+  .img-block figcaption { font-size: 9pt; color: #4a6fa5; font-style: italic; margin-top: 5px; }
 
   /* ── Horizontal Rule ── */
-  hr { border: none; border-top: 1px solid #ddd; margin: 28px 0; }
+  hr { border: none; border-top: 1px solid #bfdbfe; margin: 28px 0; }
 
-  /* ── Highlight box ── */
-  .note { background: #eaf4fb; border-left: 4px solid #3498db; padding: 10px 14px; margin: 12px 0; font-size: 10pt; }
+  /* ── Section background ── */
+  .section-box { background: #f8fbff; border-left: 4px solid #3b82f6; padding: 10px 14px; margin: 12px 0; border-radius: 0 4px 4px 0; }
+
+  /* ── Page breaks ── */
+  .page-start { page-break-before: always; margin-top: 0; }
 
   /* ── Print overrides ── */
   @media print {
-    body { padding: 0; }
+    body { background: #fff; padding: 0; }
     a { color: inherit; text-decoration: none; }
     pre { white-space: pre-wrap; }
-    .cover { page-break-after: always; }
+    .cover { page-break-after: always; background: #fff; }
     .toc { page-break-after: always; }
     h1, h2, h3 { page-break-after: avoid; }
     table, figure, .img-block { page-break-inside: avoid; }
@@ -118,7 +122,7 @@
 </head>
 <body>
 
-<!-- ═══════════════════════ COVER ═══════════════════════ -->
+<!-- COVER -->
 <div class="cover">
   <h1>SpendSense</h1>
   <div class="subtitle">Personal Expense Category Classifier — MLOps Project Report</div>
@@ -132,11 +136,12 @@
   </div>
 </div>
 
-<!-- ═══════════════════════ TABLE OF CONTENTS ═══════════════════════ -->
+<!-- TABLE OF CONTENTS -->
 <div class="toc">
   <h2>Table of Contents</h2>
   <ol>
     <li><a href="#what-it-does">What It Does</a></li>
+    <li><a href="#dataset">Dataset Exploration, Analysis &amp; Preprocessing</a></li>
     <li><a href="#system-architecture">System Architecture</a>
       <ul>
         <li><a href="#layer1">Layer 1 — GitHub Actions (CI/CD Pipeline)</a></li>
@@ -150,7 +155,6 @@
     <li><a href="#dataflow">Data Flow</a></li>
     <li><a href="#hld">High Level Design Summary</a></li>
     <li><a href="#model">ML Model</a></li>
-    <li><a href="#categories">Expense Categories</a></li>
     <li><a href="#cicd">CI/CD Design</a></li>
     <li><a href="#feedback">Feedback Loop &amp; Drift Detection</a></li>
     <li><a href="#acceptance">Acceptance Criteria</a></li>
@@ -162,7 +166,7 @@
   </ol>
 </div>
 
-<!-- ═══════════════════════ SECTIONS ═══════════════════════ -->
+<!-- SECTIONS -->
 
 <h1 id="what-it-does">1. What It Does</h1>
 <p>SpendSense reads a bank transaction description (e.g. <code>UPI-ZEPTO-ZEPTOONLINE@YBL-YESB0YBLUPI-606266723117-UPI</code>) and automatically classifies it into one of 10 spending categories like Food &amp; Dining, Transportation, Shopping, etc. In this case, the transaction would be classified as <em>Food &amp; Dining</em>.</p>
@@ -170,10 +174,62 @@
 
 <hr>
 
-<h1 id="system-architecture">2. System Architecture</h1>
+<h1 id="dataset">2. Dataset Exploration, Analysis &amp; Preprocessing</h1>
+<p>The model is trained on the <code>nickmuchi/financial-classification</code> dataset from HuggingFace — real bank transaction narrations labelled across 10 spending categories.</p>
+
+<h2>Data Pipeline</h2>
+<div class="img-block">
+  <img src="images/data_pipeline.png" alt="Data Pipeline">
+  <figcaption>Figure 1 — End-to-end data pipeline from raw HuggingFace data to trained model</figcaption>
+</div>
+<p>The diagram above traces the full journey of data through the system. Raw transaction data (4.5M rows) from HuggingFace is cleaned and deduplicated down to 1.34M rows. Before each CI run, this data is split 90/10: the 90% baseline undergoes a 70/15/15 train/validation/test split, gets tokenised and encoded into fixed-length sequences, and trains the BiLSTM. The 10% slice is intentionally skewed to simulate drift. When Airflow detects a distribution shift, all three sources — baseline, drift slice, and user feedback corrections — are merged and passed back through the pipeline for retraining.</p>
+
+<h2>Raw Data Cleanup</h2>
+<p>The raw download contains ~4.5 million rows but is heavily duplicated. After removing nulls, filtering to the 10 valid categories, and deduplicating identical <code>(description, category)</code> pairs, <strong>1,343,517 clean rows</strong> remain.</p>
+<table>
+  <tr><th>Stage</th><th>Rows</th></tr>
+  <tr><td>Raw download</td><td>~4,500,000</td></tr>
+  <tr><td>After cleanup (null removal + category filter + deduplication)</td><td><strong>1,343,517</strong></td></tr>
+  <tr><td>Eliminated</td><td>~3,156,483 (~70%)</td></tr>
+</table>
+<p>The cleaned dataset is well-balanced — each category has between 130K and 138K rows:</p>
+<table>
+  <tr><th>Category</th><th>Count</th><th>Example Transactions</th></tr>
+  <tr><td>Financial Services</td><td>138,454</td><td>Credit card payment, SIP, LIC premium</td></tr>
+  <tr><td>Government &amp; Legal</td><td>138,401</td><td>Tax payment, passport fees, court fees</td></tr>
+  <tr><td>Utilities &amp; Services</td><td>137,366</td><td>BESCOM bill, Jio recharge, internet</td></tr>
+  <tr><td>Shopping &amp; Retail</td><td>134,008</td><td>Amazon, Flipkart, Myntra</td></tr>
+  <tr><td>Food &amp; Dining</td><td>133,932</td><td>Zomato, Swiggy, restaurant bill</td></tr>
+  <tr><td>Transportation</td><td>133,799</td><td>Uber, Ola, petrol pump</td></tr>
+  <tr><td>Entertainment &amp; Recreation</td><td>133,570</td><td>Netflix, BookMyShow, gaming</td></tr>
+  <tr><td>Healthcare &amp; Medical</td><td>132,582</td><td>Apollo pharmacy, lab tests</td></tr>
+  <tr><td>Charity &amp; Donations</td><td>131,232</td><td>NGO donation, temple donation</td></tr>
+  <tr><td>Income</td><td>130,173</td><td>Salary, freelance payment, refund</td></tr>
+</table>
+<p><strong>Average transaction description length:</strong> 25.3 characters.</p>
+
+<h2 class="page-start">CI/CD Drift Simulation</h2>
+<p>Before each CI run, the full raw dataset is split into a <strong>90% baseline file</strong> (stratified, used for Run 1 training) and a <strong>10% drift file</strong> (intentionally skewed — the top 3 categories are oversampled to 75% of the slice). This skew guarantees a &gt;10 percentage-point distribution shift, which triggers the Airflow drift alert on every CI run and exercises the full retraining loop.</p>
+
+<h2>Training, Validation &amp; Test Split</h2>
+<p>The 90% baseline data is split into three sets (stratified to preserve category proportions):</p>
+<table>
+  <tr><th>Split</th><th>Fraction</th><th>Approx. Rows</th></tr>
+  <tr><td>Train</td><td>70%</td><td>~940,000</td></tr>
+  <tr><td>Validation</td><td>15%</td><td>~202,000</td></tr>
+  <tr><td>Test</td><td>15%</td><td>~202,000</td></tr>
+</table>
+<p>Each description is lowercased, punctuation-stripped, and tokenised into words. A vocabulary of 10,000 words (plus <code>&lt;PAD&gt;</code> and <code>&lt;UNK&gt;</code>) is built from the training set only. Every description is then encoded as a fixed-length sequence of 50 integer tokens — shorter descriptions are padded, longer ones are truncated. Most transaction narrations are 3–5 meaningful words, so the 50-token limit covers over 99% of inputs.</p>
+
+<h2>Retraining Data Merge</h2>
+<p>When drift is detected, Airflow combines three data sources into a single training file: the 90% baseline (~4.05M rows), the 10% drift slice (~450K rows), and any user-submitted feedback corrections. The merged file (~4.5M rows total) is then passed through the full DVC pipeline as <strong>DVC Run 2</strong>, which fine-tunes the Run 1 model for 1 epoch rather than retraining from scratch.</p>
+
+<hr>
+
+<h1 id="system-architecture" class="page-start">3. System Architecture</h1>
 <div class="img-block">
   <img src="images/system_architecture.png" alt="System Architecture">
-  <figcaption>Figure 1 — End-to-end system architecture</figcaption>
+  <figcaption>Figure 2 — End-to-end system architecture</figcaption>
 </div>
 
 <h2 id="layer1">Layer 1 — GitHub Actions (CI/CD Pipeline)</h2>
@@ -190,7 +246,7 @@
 <p><strong>9-step pipeline:</strong></p>
 <div class="img-block">
   <img src="images/airflow_dag.png" alt="Airflow DAG">
-  <figcaption>Figure 2 — Airflow 9-task DAG for daily data ingestion and drift detection</figcaption>
+  <figcaption>Figure 3 — Airflow 9-task DAG for daily data ingestion and drift detection</figcaption>
 </div>
 <p>If drift is detected (&gt;10 percentage-point shift in category distribution), it merges new data with the original training set and triggers retraining using the previous model as a starting point (warm start/fine-tuning).</p>
 
@@ -198,7 +254,7 @@
 <p>DVC manages the four-stage ML pipeline and ensures every run is reproducible.</p>
 <div class="img-block">
   <img src="images/dvc_dag.png" alt="DVC DAG">
-  <figcaption>Figure 3 — DVC 4-stage pipeline DAG</figcaption>
+  <figcaption>Figure 4 — DVC 4-stage pipeline DAG</figcaption>
 </div>
 <p><strong>4 stages:</strong> <code>ingest → preprocess → train → evaluate</code></p>
 <ul>
@@ -234,10 +290,11 @@
   <tr><td><code>GET /metrics</code></td><td>Prometheus metrics endpoint</td></tr>
 </table>
 
+<div style="page-break-before: always; page-break-inside: avoid;">
 <h3>Streamlit Frontend (port 8501)</h3>
 <div class="img-block">
-  <img src="images/streamlit_frontend.png" alt="Streamlit Frontend">
-  <figcaption>Figure 4 — Streamlit frontend showing prediction and confidence chart</figcaption>
+  <img src="images/streamlit_frontend.png" alt="Streamlit Frontend" style="max-height: 500px; width: auto; max-width: 100%;">
+  <figcaption>Figure 5 — Streamlit frontend showing prediction and confidence chart</figcaption>
 </div>
 <p>Three pages accessible in the browser:</p>
 <ul>
@@ -245,11 +302,12 @@
   <li><strong>Batch Predict:</strong> Upload a CSV, paste multiple descriptions, or upload a bank statement (.xls/.xlsx) — get all predictions at once with a downloadable results table.</li>
   <li><strong>Pipeline Status:</strong> Live health grid for all services, Prometheus metrics, DVC pipeline diagram, and Airflow run history.</li>
 </ul>
+</div>
 
-<h3>Monitoring Stack</h3>
+<h3 class="page-start">Monitoring Stack</h3>
 <div class="img-block">
   <img src="images/grafana_db.png" alt="Grafana Dashboard">
-  <figcaption>Figure 5a — Grafana 8-panel near-real-time dashboard</figcaption>
+  <figcaption>Figure 6 — Grafana 8-panel near-real-time dashboard</figcaption>
 </div>
 <table>
   <tr><th>Tool</th><th>Port</th><th>Purpose</th></tr>
@@ -262,9 +320,7 @@
 
 <hr>
 
-<hr>
-
-<h1 id="connections">3. How All the Pieces Connect</h1>
+<h1 id="connections" class="page-start">4. How All the Pieces Connect</h1>
 <pre>
 User
  │
@@ -286,8 +342,7 @@ BiLSTM Model + Vocab + LabelEncoder
 
 <hr>
 
-<h1 id="dataflow">4. Data Flow</h1>
-
+<h1 id="dataflow">5. Data Flow</h1>
 <ol>
   <li><strong>Ingestion (Airflow):</strong> Loads raw transaction CSV, validates for missing/malformed data, checks if transaction patterns have shifted, merges new data with user corrections, saves clean data ready for training.</li>
   <li><strong>Preprocessing (DVC):</strong> Converts transaction text into numbers (tokenization), builds a word dictionary (top 10K words), pads all sequences to length 50, splits data into train/validation/test sets (70/15/15), saves processed arrays and vocabulary.</li>
@@ -300,19 +355,19 @@ BiLSTM Model + Vocab + LabelEncoder
 
 <hr>
 
-<h1 id="hld">5. High Level Design Summary</h1>
-
+<h1 id="hld" class="page-start">6. High Level Design Summary</h1>
 <div class="img-block">
   <img src="images/hld_pipeline.png" alt="High Level Design Pipeline">
-  <figcaption>Figure 6 — High level design pipeline overview</figcaption>
+  <figcaption>Figure 7 — High level design pipeline overview</figcaption>
 </div>
+<p>The diagram above shows the end-to-end system at a glance. GitHub Actions sits at the top and orchestrates everything — it triggers the ML pipeline via DVC and manages the infrastructure lifecycle. DVC runs the four-stage data-to-model pipeline: raw data is cleaned, split, tokenised, and used to train a BiLSTM. The trained model is logged in MLflow and served through a FastAPI backend, which the Streamlit frontend calls for predictions. Airflow runs daily to check whether new data has drifted from the training distribution and fires a retraining run when it has. Prometheus and Grafana monitor all services in real time, with Alertmanager sending email alerts when something goes wrong.</p>
 
 <hr>
 
-<h1 id="model">6. ML Model</h1>
+<h1 id="model" class="page-start">7. ML Model</h1>
 <div class="img-block">
   <img src="images/NN_Architecture.png" alt="Neural Network Architecture">
-  <figcaption>Figure 7 — BiLSTM neural network architecture</figcaption>
+  <figcaption>Figure 8 — BiLSTM neural network architecture</figcaption>
 </div>
 <ul>
   <li><strong>Architecture:</strong> Bidirectional LSTM (2 layers, 256 hidden dim per direction → 512 effective)</li>
@@ -321,34 +376,17 @@ BiLSTM Model + Vocab + LabelEncoder
   <li><strong>Output:</strong> Softmax over 10 expense categories</li>
   <li><strong>Training data:</strong> 4.5M raw transactions from HuggingFace <code>nickmuchi/financial-classification</code>; ~1.34M rows remain after dropping nulls, unknown categories, and duplicates</li>
   <li><strong>Run 1:</strong> Full training from scratch on 90% of the cleaned corpus (~1.2M rows), logged as <code>bilstm_training</code></li>
-  <li><strong>Run 2:</strong> The remaining 10% (~134K rows) is a held-out batch that simulates newly arrived data with class distribution drift. Airflow checks it for drift, merges it with the 90% training set and the user feedback, then DVC fine-tunes for 1 more epoch from the Run-1 checkpoint, logged as <code>bilstm_finetune</code></li>
+  <li><strong>Run 2:</strong> The remaining 10% (~134K rows) is a held-out batch that simulates newly arrived data with class distribution drift. Airflow checks it for drift, merges it with the 90% training set and user feedback, then DVC fine-tunes for 1 more epoch from the Run-1 checkpoint, logged as <code>bilstm_finetune</code></li>
   <li><strong>Performance:</strong> test macro F1 = 98.72%, test accuracy = 98.75%</li>
   <li><strong>Inference:</strong> Dynamic INT8 quantization on LSTM and Linear layers at load time (~4× memory reduction)</li>
 </ul>
 
 <hr>
 
-<h1 id="categories">7. Expense Categories (10 classes)</h1>
-<table>
-  <tr><th>Category</th><th>Examples</th></tr>
-  <tr><td>Food &amp; Dining</td><td>Zomato, Swiggy, restaurant bill</td></tr>
-  <tr><td>Transportation</td><td>Uber, Ola, petrol pump</td></tr>
-  <tr><td>Utilities &amp; Services</td><td>BESCOM bill, Jio recharge, internet</td></tr>
-  <tr><td>Entertainment &amp; Recreation</td><td>Netflix, BookMyShow, gaming</td></tr>
-  <tr><td>Shopping &amp; Retail</td><td>Amazon, Flipkart, Myntra</td></tr>
-  <tr><td>Healthcare &amp; Medical</td><td>Apollo pharmacy, lab tests</td></tr>
-  <tr><td>Financial Services</td><td>Credit card payment, SIP, LIC premium</td></tr>
-  <tr><td>Income</td><td>Salary, freelance payment, refund</td></tr>
-  <tr><td>Government &amp; Legal</td><td>Tax payment, passport fees, court fees</td></tr>
-  <tr><td>Charity &amp; Donations</td><td>NGO donation, temple donation</td></tr>
-</table>
-
-<hr>
-
-<h1 id="cicd">8. CI/CD Design</h1>
+<h1 id="cicd" class="page-start">8. CI/CD Design</h1>
 <div class="img-block">
   <img src="images/ci_cd_pipeline.png" alt="CI/CD Pipeline">
-  <figcaption>Figure 8 — 3-job GitHub Actions CI/CD pipeline</figcaption>
+  <figcaption>Figure 9 — 3-job GitHub Actions CI/CD pipeline</figcaption>
 </div>
 <p>Every push to <code>main</code> triggers a 3-job automated pipeline that takes ~13 minutes end to end.</p>
 <p><strong>Job 1 (~30s) — runs on every branch:</strong> Checks code style with flake8 and runs all 68 unit tests. Fails if code coverage drops below 60%.</p>
@@ -357,10 +395,10 @@ BiLSTM Model + Vocab + LabelEncoder
 
 <hr>
 
-<h1 id="feedback">9. Feedback Loop &amp; Drift Detection</h1>
+<h1 id="feedback" class="page-start">9. Feedback Loop &amp; Drift Detection</h1>
 <div class="img-block">
   <img src="images/frontend_category_correction.png" alt="Frontend Category Correction">
-  <figcaption>Figure 9 — Frontend UI for submitting category corrections</figcaption>
+  <figcaption>Figure 10 — Frontend UI for submitting category corrections</figcaption>
 </div>
 <p>When the model misclassifies a transaction, the user can correct it directly from the frontend. Each correction is saved and accumulates over time. The system periodically checks whether the corrections reveal a pattern — specifically, if any spending category has shifted by more than 10 percentage points from the original distribution. When such a shift is detected, the model is automatically retrained on the combined original data plus all collected corrections, so it adapts to real user behaviour without any manual intervention.</p>
 
@@ -389,7 +427,7 @@ BiLSTM Model + Vocab + LabelEncoder
 
 <hr>
 
-<h1 id="metrics">12. Training &amp; Evaluation Metrics</h1>
+<h1 id="metrics" class="page-start">12. Training &amp; Evaluation Metrics</h1>
 <p>Metrics are evaluated on the held-out 15% test split of ~1.34M cleaned rows.</p>
 
 <h2>Overall</h2>
@@ -402,30 +440,30 @@ BiLSTM Model + Vocab + LabelEncoder
 
 <h2>Per-Class F1 Scores</h2>
 <table>
-  <tr><th>Category</th><th>F1 Score</th><th>Notes</th></tr>
-  <tr><td>Charity &amp; Donations</td><td>99.99%</td><td>Near-perfect — highly distinctive vocabulary</td></tr>
-  <tr><td>Entertainment &amp; Recreation</td><td>99.99%</td><td>Near-perfect</td></tr>
-  <tr><td>Financial Services</td><td>99.99%</td><td>Near-perfect</td></tr>
-  <tr><td>Transportation</td><td>99.29%</td><td>Excellent</td></tr>
-  <tr><td>Utilities &amp; Services</td><td>99.32%</td><td>Excellent</td></tr>
-  <tr><td>Food &amp; Dining</td><td>99.31%</td><td>Excellent</td></tr>
-  <tr><td>Income</td><td>98.84%</td><td>Strong</td></tr>
-  <tr><td>Government &amp; Legal</td><td>97.78%</td><td>Small overlap with Financial Services</td></tr>
-  <tr><td>Healthcare &amp; Medical</td><td>96.96%</td><td>Some confusion with Shopping &amp; Retail</td></tr>
-  <tr><td>Shopping &amp; Retail</td><td>95.45%</td><td>Lowest — broad category, overlaps with Entertainment</td></tr>
+  <tr><th>Category</th><th>F1 Score</th><th>Accuracy</th><th>Notes</th></tr>
+  <tr><td>Charity &amp; Donations</td><td>99.99%</td><td>99.99%</td><td>Near-perfect — highly distinctive vocabulary</td></tr>
+  <tr><td>Entertainment &amp; Recreation</td><td>99.99%</td><td>99.99%</td><td>Near-perfect</td></tr>
+  <tr><td>Financial Services</td><td>99.99%</td><td>99.99%</td><td>Near-perfect</td></tr>
+  <tr><td>Utilities &amp; Services</td><td>99.32%</td><td>99.32%</td><td>Excellent</td></tr>
+  <tr><td>Food &amp; Dining</td><td>99.31%</td><td>99.31%</td><td>Excellent</td></tr>
+  <tr><td>Transportation</td><td>99.29%</td><td>99.29%</td><td>Excellent</td></tr>
+  <tr><td>Income</td><td>98.84%</td><td>98.84%</td><td>Strong</td></tr>
+  <tr><td>Government &amp; Legal</td><td>97.78%</td><td>97.78%</td><td>Minor overlap with Financial Services</td></tr>
+  <tr><td>Healthcare &amp; Medical</td><td>96.96%</td><td>96.96%</td><td>Some confusion with Shopping &amp; Retail</td></tr>
+  <tr><td>Shopping &amp; Retail</td><td>95.45%</td><td>95.45%</td><td>Lowest — broadest category, overlaps with Entertainment</td></tr>
 </table>
-<p>Shopping &amp; Retail has the lowest F1 (95.45%) because it is the broadest category — some Entertainment and Healthcare transactions share similar merchant naming patterns. Government &amp; Legal and Healthcare &amp; Medical show minor mutual confusion in the confusion matrix.</p>
+<p>Shopping &amp; Retail scores the lowest (95.45%) because it is the broadest category — gym memberships, online pharmacies, and multi-category retailers share merchant names with both Entertainment &amp; Recreation and Healthcare &amp; Medical. Government &amp; Legal and Financial Services show a narrow band of mutual confusion, primarily around fee-based transaction narrations.</p>
 
-<h2>Confusion Matrix</h2>
+<h2 class="page-start">Confusion Matrix</h2>
 <div class="img-block">
   <img src="images/confusion_matrix.png" alt="Confusion Matrix">
-  <figcaption>Figure 10 — Confusion matrix on the 15% held-out test set</figcaption>
+  <figcaption>Figure 11 — Confusion matrix on the 15% held-out test set</figcaption>
 </div>
-<p>The diagonal is overwhelmingly dominant. The main off-diagonal clusters are Shopping &amp; Retail ↔ Entertainment &amp; Recreation and Healthcare &amp; Medical ↔ Shopping &amp; Retail, reflecting overlapping merchant types (gyms, pharmacies, general online retailers).</p>
+<p>The matrix shows strong diagonal dominance across all 10 classes. The only notable off-diagonal activity is between Shopping &amp; Retail and Entertainment &amp; Recreation, and between Healthcare &amp; Medical and Shopping &amp; Retail — categories that share merchant naming patterns such as gyms, online pharmacies, and general retail platforms.</p>
 
 <hr>
 
-<h1 id="coverage">13. Code Coverage Report</h1>
+<h1 id="coverage" class="page-start">13. Code Coverage Report</h1>
 <p>Coverage from the latest CI run (<code>pytest --cov=src --cov=backend --cov-fail-under=60</code>):</p>
 <table>
   <tr><th>Module</th><th>Statements</th><th>Missed</th><th>Coverage</th></tr>

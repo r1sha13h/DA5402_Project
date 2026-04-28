@@ -1,4 +1,4 @@
-# Exclude large non-source directories from Windsurf AI indexing
+# Exclude large non-source directories from indexing
 venv/
 .venv/
 mlruns/

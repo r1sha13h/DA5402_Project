@@ -52,6 +52,6 @@ actions-runner/
 .env
 
 # Local/private files
-.claude
-CLAUDE.md
+.context/
+context.md
 docs_git_ignore/

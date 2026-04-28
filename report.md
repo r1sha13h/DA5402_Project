@@ -6,6 +6,67 @@ SpendSense reads a bank transaction description (e.g. "UPI-ZEPTO-ZEPTOONLINE@YBL
 
 It is built with a full MLOps stack so the model can retrain itself when data patterns change.
 
+---
+
+## Dataset Exploration, Analysis & Preprocessing
+
+The model is trained on the `nickmuchi/financial-classification` dataset from HuggingFace — real bank transaction narrations labelled across 10 spending categories.
+
+### Data Pipeline
+
+![Data Pipeline](images/data_pipeline.png)
+
+The diagram above traces the full journey of data through the system. Raw transaction data (4.5M rows) from HuggingFace is cleaned and deduplicated down to 1.34M rows. Before each CI run, this data is split 90/10: the 90% baseline undergoes a 70/15/15 train/validation/test split, gets tokenised and encoded into fixed-length sequences, and trains the BiLSTM. The 10% slice is intentionally skewed to simulate drift. When Airflow detects a distribution shift, all three sources — baseline, drift slice, and user feedback corrections — are merged and passed back through the pipeline for retraining.
+
+### Raw Data Cleanup
+
+The raw download contains ~4.5 million rows but is heavily duplicated. After removing nulls, filtering to the 10 valid categories, and deduplicating identical `(description, category)` pairs, **1,343,517 clean rows** remain.
+
+| Stage | Rows |
+|---|---|
+| Raw download | ~4,500,000 |
+| After cleanup (null removal + category filter + deduplication) | **1,343,517** |
+| Eliminated | ~3,156,483 (~70%) |
+
+The cleaned dataset is well-balanced — each category has between 130K and 138K rows:
+
+| Category | Count | Example Transactions |
+|---|---|---|
+| Financial Services | 138,454 | Credit card payment, SIP, LIC premium |
+| Government & Legal | 138,401 | Tax payment, passport fees, court fees |
+| Utilities & Services | 137,366 | BESCOM bill, Jio recharge, internet |
+| Shopping & Retail | 134,008 | Amazon, Flipkart, Myntra |
+| Food & Dining | 133,932 | Zomato, Swiggy, restaurant bill |
+| Transportation | 133,799 | Uber, Ola, petrol pump |
+| Entertainment & Recreation | 133,570 | Netflix, BookMyShow, gaming |
+| Healthcare & Medical | 132,582 | Apollo pharmacy, lab tests |
+| Charity & Donations | 131,232 | NGO donation, temple donation |
+| Income | 130,173 | Salary, freelance payment, refund |
+
+**Average transaction description length:** 25.3 characters.
+
+### CI/CD Drift Simulation
+
+Before each CI run, the full raw dataset is split into a **90% baseline file** (stratified, used for Run 1 training) and a **10% drift file** (intentionally skewed — the top 3 categories are oversampled to 75% of the slice). This skew guarantees a >10 percentage-point distribution shift, which triggers the Airflow drift alert on every CI run and exercises the full retraining loop.
+
+### Training, Validation & Test Split
+
+The 90% baseline data is split into three sets (stratified to preserve category proportions):
+
+| Split | Fraction | Approx. Rows |
+|---|---|---|
+| Train | 70% | ~940,000 |
+| Validation | 15% | ~202,000 |
+| Test | 15% | ~202,000 |
+
+Each description is lowercased, punctuation-stripped, and tokenised into words. A vocabulary of 10,000 words (plus `<PAD>` and `<UNK>`) is built from the training set only. Every description is then encoded as a fixed-length sequence of 50 integer tokens — shorter descriptions are padded, longer ones are truncated. Most transaction narrations are 3–5 meaningful words, so the 50-token limit covers over 99% of inputs.
+
+### Retraining Data Merge
+
+When drift is detected, Airflow combines three data sources into a single training file: the 90% baseline (~4.05M rows), the 10% drift slice (~450K rows), and any user-submitted feedback corrections. The merged file (~4.5M rows total) is then passed through the full DVC pipeline as **DVC Run 2**, which fine-tunes the Run 1 model for 1 epoch rather than retraining from scratch.
+
+---
+
 ## System Architecture
 
 ![System Architecture](images/system_architecture.png)
@@ -148,6 +209,8 @@ BiLSTM Model + Vocab + LabelEncoder
 
 ![HLD Pipeline](images/hld_pipeline.png)
 
+The diagram above shows the end-to-end system at a glance. GitHub Actions sits at the top and orchestrates everything — it triggers the ML pipeline via DVC and manages the infrastructure lifecycle. DVC runs the four-stage data-to-model pipeline: raw data is cleaned, split, tokenised, and used to train a BiLSTM. The trained model is logged in MLflow and served through a FastAPI backend, which the Streamlit frontend calls for predictions. Airflow runs daily to check whether new data has drifted from the training distribution and fires a retraining run when it has. Prometheus and Grafana monitor all services in real time, with Alertmanager sending email alerts when something goes wrong.
+
 ---
 
 ## ML Model
@@ -163,23 +226,6 @@ BiLSTM Model + Vocab + LabelEncoder
 - **Run 2:** The remaining 10% (~134K rows) is a held-out batch that simulates newly arrived data and has class distribution drift from the original 90% data. Airflow checks it for drift, merges it with the 90% training set and the user feedback collected using the frontend, then DVC fine-tunes for 1 more epoch from the Run-1 checkpoint, logged as `bilstm_finetune`
 - **Performance:** test macro F1 = 98.72%, test accuracy = 98.75%
 - **Inference:** Dynamic INT8 quantization on LSTM and Linear layers at load time (~4× memory reduction)
-
----
-
-## Expense Categories (10 classes)
-
-| Category | Examples |
-|---|---|
-| Food & Dining | Zomato, Swiggy, restaurant bill |
-| Transportation | Uber, Ola, petrol pump |
-| Utilities & Services | BESCOM bill, Jio recharge, internet |
-| Entertainment & Recreation | Netflix, BookMyShow, gaming |
-| Shopping & Retail | Amazon, Flipkart, Myntra |
-| Healthcare & Medical | Apollo pharmacy, lab tests |
-| Financial Services | Credit card payment, SIP, LIC premium |
-| Income | Salary, freelance payment, refund |
-| Government & Legal | Tax payment, passport fees, court fees |
-| Charity & Donations | NGO donation, temple donation |
 
 ---
 
@@ -246,26 +292,26 @@ Metrics are evaluated on the held-out 15% test split of ~1.34M cleaned rows.
 
 ### Per-Class F1 Scores
 
-| Category | F1 Score | Notes |
-|---|---|---|
-| Charity & Donations | 99.99% | Near-perfect — highly distinctive vocabulary |
-| Entertainment & Recreation | 99.99% | Near-perfect |
-| Financial Services | 99.99% | Near-perfect |
-| Transportation | 99.29% | Excellent |
-| Utilities & Services | 99.32% | Excellent |
-| Food & Dining | 99.31% | Excellent |
-| Income | 98.84% | Strong |
-| Government & Legal | 97.78% | Small overlap with Financial Services |
-| Healthcare & Medical | 96.96% | Some confusion with Shopping & Retail |
-| Shopping & Retail | 95.45% | Lowest — broad category, overlaps with Entertainment |
+| Category | F1 Score | Accuracy | Notes |
+|---|---|---|---|
+| Charity & Donations | 99.99% | 99.99% | Near-perfect — highly distinctive vocabulary |
+| Entertainment & Recreation | 99.99% | 99.99% | Near-perfect |
+| Financial Services | 99.99% | 99.99% | Near-perfect |
+| Utilities & Services | 99.32% | 99.32% | Excellent |
+| Food & Dining | 99.31% | 99.31% | Excellent |
+| Transportation | 99.29% | 99.29% | Excellent |
+| Income | 98.84% | 98.84% | Strong |
+| Government & Legal | 97.78% | 97.78% | Minor overlap with Financial Services |
+| Healthcare & Medical | 96.96% | 96.96% | Some confusion with Shopping & Retail |
+| Shopping & Retail | 95.45% | 95.45% | Lowest — broadest category, overlaps with Entertainment |
 
-Shopping & Retail has the lowest F1 (95.45%) because it is the broadest category — some Entertainment and Healthcare transactions share similar merchant naming patterns. Government & Legal and Healthcare & Medical show minor mutual confusion in the confusion matrix.
+Shopping & Retail scores the lowest (95.45%) because it is the broadest category — gym memberships, online pharmacies, and multi-category retailers share merchant names with both Entertainment & Recreation and Healthcare & Medical. Government & Legal and Financial Services show a narrow band of mutual confusion, primarily around fee-based transaction narrations.
 
 ### Confusion Matrix
 
 ![Confusion Matrix](images/confusion_matrix.png)
 
-The diagonal is overwhelmingly dominant. The main off-diagonal clusters are Shopping & Retail ↔ Entertainment & Recreation and Healthcare & Medical ↔ Shopping & Retail, reflecting overlapping merchant types (gyms, pharmacies, general online retailers).
+The matrix shows strong diagonal dominance across all 10 classes. The only notable off-diagonal activity is between Shopping & Retail and Entertainment & Recreation, and between Healthcare & Medical and Shopping & Retail — categories that share merchant naming patterns such as gyms, online pharmacies, and general retail platforms.
 
 ---
 
