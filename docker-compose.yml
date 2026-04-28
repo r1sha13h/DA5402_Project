@@ -75,6 +75,8 @@ services:
     networks: [spendsense]
     ports:
       - "8501:8501"
+    volumes:
+      - ./data:/app/data:ro
     environment:
       - BACKEND_URL=http://backend:8000
       - MLFLOW_URL=http://mlflow:5000
@@ -83,6 +85,7 @@ services:
       - PUSHGATEWAY_URL=http://pushgateway:9091
       - PROMETHEUS_URL=http://prometheus:9090
       - ALERTMANAGER_URL=http://alertmanager:9093
+      - DATA_DIR=/app/data
     depends_on:
       backend:
         condition: service_healthy
