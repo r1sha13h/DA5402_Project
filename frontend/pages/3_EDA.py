@@ -1,5 +1,6 @@
 """SpendSense Streamlit Frontend — Exploratory Data Analysis Page."""
 
+import json
 import os
 
 import altair as alt
@@ -11,11 +12,14 @@ DATA_DIR = os.environ.get(
     os.path.join(os.path.dirname(__file__), "..", "..", "data"),
 )
 
+ORIGINAL_ROWS = 4_500_000  # raw HuggingFace download before any cleanup
+
 st.set_page_config(page_title="EDA — SpendSense", page_icon="📊", layout="wide")
 st.title("📊 Exploratory Data Analysis")
 st.markdown(
-    "Comparing the **90% baseline** training split against the **10% drift** split "
-    "to understand data distribution and the intentional skew introduced for drift detection."
+    "The original HuggingFace dataset had **4.5M rows**. After deduplication, null removal, "
+    "and unknown-category filtering, **1.34M rows** were retained and split 90 / 10 for "
+    "training and drift simulation."
 )
 st.divider()
 
@@ -30,121 +34,167 @@ def load_data():
         os.path.join(DATA_DIR, "drift", "transactions_drift.csv"),
         usecols=["description", "category"],
     )
-    return base, drift
+    stats_path = os.path.join(DATA_DIR, "ingested", "baseline_stats.json")
+    with open(stats_path) as f:
+        baseline_stats = json.load(f)
+    return base, drift, baseline_stats
 
 
 try:
-    df_base, df_drift = load_data()
+    df_base, df_drift, stats = load_data()
 except FileNotFoundError as e:
     st.error(f"Data files not found: {e}. Ensure the data volume is mounted correctly.")
     st.stop()
 
+cleaned_rows = stats["total_rows"]
+eliminated_rows = ORIGINAL_ROWS - cleaned_rows
+
 # ── Section 1: Overview ────────────────────────────────────────────────────────
 st.subheader("Dataset Overview")
-
 c1, c2, c3, c4 = st.columns(4)
-c1.metric("Baseline rows", f"{len(df_base):,}")
-c2.metric("Drift rows", f"{len(df_drift):,}")
-c3.metric("Categories (baseline)", df_base["category"].nunique())
-c4.metric("Categories (drift)", df_drift["category"].nunique())
+c1.metric("Original dataset", f"{ORIGINAL_ROWS:,}")
+c2.metric("After cleanup", f"{cleaned_rows:,}", delta=f"-{eliminated_rows:,} removed")
+c3.metric("Baseline split (90%)", f"{len(df_base):,}")
+c4.metric("Drift split (10%)", f"{len(df_drift):,}")
 
 st.divider()
 
-# ── Section 2: Category Distribution ──────────────────────────────────────────
-st.subheader("Category Distribution")
+# ── Section 2: Cleanup Pie Chart ───────────────────────────────────────────────
+st.subheader("Data Cleanup — 4.5M → 1.34M")
 st.caption(
-    "Proportion of each category in each split. "
-    "The drift split intentionally over-samples the top-3 categories to guarantee a >10pp shift."
+    "Rows eliminated during ingestion: nulls, unknown categories, and "
+    "(description, category) duplicates."
 )
 
-base_dist = (
-    df_base["category"]
-    .value_counts(normalize=True)
-    .mul(100)
-    .reset_index()
-    .rename(columns={"proportion": "pct", "category": "category"})
-)
-base_dist.columns = ["category", "pct"]
-base_dist["split"] = "Baseline (90%)"
+pie_data = pd.DataFrame({
+    "label": ["Retained after cleanup", "Removed (nulls / duplicates / unknown)"],
+    "count": [cleaned_rows, eliminated_rows],
+})
 
-drift_dist = (
-    df_drift["category"]
-    .value_counts(normalize=True)
-    .mul(100)
-    .reset_index()
-    .rename(columns={"proportion": "pct", "category": "category"})
-)
-drift_dist.columns = ["category", "pct"]
-drift_dist["split"] = "Drift (10%)"
-
-combined = pd.concat([base_dist, drift_dist])
-
-dist_chart = (
-    alt.Chart(combined)
-    .mark_bar()
+pie = (
+    alt.Chart(pie_data)
+    .mark_arc(outerRadius=130, innerRadius=55)
     .encode(
-        x=alt.X("category:N", sort="-y", title=None, axis=alt.Axis(labelAngle=-30)),
-        y=alt.Y("pct:Q", title="Proportion (%)"),
-        color=alt.Color("split:N", title="Split"),
-        xOffset="split:N",
-        tooltip=["category:N", "split:N", alt.Tooltip("pct:Q", format=".1f", title="Pct %")],
-    )
-    .properties(height=350)
-)
-st.altair_chart(dist_chart, use_container_width=True)
-
-st.divider()
-
-# ── Section 3: Drift Delta ─────────────────────────────────────────────────────
-st.subheader("Drift Delta (Drift % − Baseline %)")
-st.caption(
-    "Positive = over-represented in drift split (red). "
-    "Negative = under-represented (blue). "
-    "Anything beyond ±10pp triggers the Airflow drift alert."
-)
-
-delta = base_dist.set_index("category")[["pct"]].join(
-    drift_dist.set_index("category")[["pct"]], lsuffix="_base", rsuffix="_drift"
-)
-delta["delta"] = delta["pct_drift"] - delta["pct_base"]
-delta = delta.reset_index().sort_values("delta", ascending=False)
-
-delta_chart = (
-    alt.Chart(delta)
-    .mark_bar()
-    .encode(
-        x=alt.X("category:N", sort="-y", title=None, axis=alt.Axis(labelAngle=-30)),
-        y=alt.Y("delta:Q", title="Δ Proportion (pp)"),
-        color=alt.condition(
-            alt.datum.delta > 0,
-            alt.value("#e05252"),
-            alt.value("#5b9bd5"),
+        theta=alt.Theta("count:Q"),
+        color=alt.Color(
+            "label:N",
+            title="",
+            scale=alt.Scale(range=["#4c9be8", "#e05252"]),
         ),
         tooltip=[
-            "category:N",
-            alt.Tooltip("pct_base:Q", format=".1f", title="Baseline %"),
-            alt.Tooltip("pct_drift:Q", format=".1f", title="Drift %"),
-            alt.Tooltip("delta:Q", format="+.1f", title="Delta (pp)"),
+            "label:N",
+            alt.Tooltip("count:Q", format=",", title="Rows"),
         ],
     )
     .properties(height=300)
 )
 
-# 10pp threshold reference lines
-rule = (
-    alt.Chart(pd.DataFrame({"y": [10, -10]}))
-    .mark_rule(strokeDash=[4, 4], color="orange", size=1.5)
-    .encode(y="y:Q")
+text = (
+    alt.Chart(pie_data)
+    .mark_text(radius=170, fontSize=13)
+    .encode(
+        theta=alt.Theta("count:Q", stack=True),
+        text=alt.Text("count:Q", format=","),
+    )
 )
-st.altair_chart(delta_chart + rule, use_container_width=True)
+
+st.altair_chart(pie + text, use_container_width=True)
 
 st.divider()
 
-# ── Section 4: Description Length ─────────────────────────────────────────────
+# ── Section 3: Category Histograms ────────────────────────────────────────────
+st.subheader("Category Distribution — Actual Counts")
+
+base_counts = df_base["category"].value_counts().reset_index()
+base_counts.columns = ["category", "count"]
+
+drift_counts = df_drift["category"].value_counts().reset_index()
+drift_counts.columns = ["category", "count"]
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.markdown("**Baseline split (90%)**")
+    base_chart = (
+        alt.Chart(base_counts)
+        .mark_bar(color="#4c9be8")
+        .encode(
+            x=alt.X("category:N", sort="-y", title=None, axis=alt.Axis(labelAngle=-35)),
+            y=alt.Y("count:Q", title="Count"),
+            tooltip=["category:N", alt.Tooltip("count:Q", format=",")],
+        )
+        .properties(height=320)
+    )
+    st.altair_chart(base_chart, use_container_width=True)
+
+with col2:
+    st.markdown("**Drift split (10%)**")
+    drift_chart = (
+        alt.Chart(drift_counts)
+        .mark_bar(color="#e05252")
+        .encode(
+            x=alt.X("category:N", sort="-y", title=None, axis=alt.Axis(labelAngle=-35)),
+            y=alt.Y("count:Q", title="Count"),
+            tooltip=["category:N", alt.Tooltip("count:Q", format=",")],
+        )
+        .properties(height=320)
+    )
+    st.altair_chart(drift_chart, use_container_width=True)
+
+st.divider()
+
+# ── Section 4: Drift Delta ─────────────────────────────────────────────────────
+st.subheader("Drift Delta (Drift % − Baseline %)")
+st.caption(
+    "Positive (red) = over-represented in the drift split. "
+    "Negative (blue) = under-represented. "
+    "Dashed lines mark the ±10pp threshold that triggers the Airflow drift alert."
+)
+
+base_pct = df_base["category"].value_counts(normalize=True).mul(100).rename("base_pct")
+drift_pct = df_drift["category"].value_counts(normalize=True).mul(100).rename("drift_pct")
+
+delta = pd.concat([base_pct, drift_pct], axis=1).fillna(0)
+delta["delta"] = delta["drift_pct"] - delta["base_pct"]
+delta = delta.reset_index().rename(columns={"index": "category"})
+delta = delta.sort_values("delta", ascending=False)
+
+delta_chart = (
+    alt.Chart(delta)
+    .mark_bar()
+    .encode(
+        x=alt.X("category:N", sort="-y", title=None, axis=alt.Axis(labelAngle=-35)),
+        y=alt.Y("delta:Q", title="Δ Proportion (pp)"),
+        color=alt.condition(
+            alt.datum.delta > 0,
+            alt.value("#e05252"),
+            alt.value("#4c9be8"),
+        ),
+        tooltip=[
+            "category:N",
+            alt.Tooltip("base_pct:Q", format=".1f", title="Baseline %"),
+            alt.Tooltip("drift_pct:Q", format=".1f", title="Drift %"),
+            alt.Tooltip("delta:Q", format="+.1f", title="Delta (pp)"),
+        ],
+    )
+    .properties(height=320)
+)
+
+thresholds = (
+    alt.Chart(pd.DataFrame({"y": [10, -10]}))
+    .mark_rule(strokeDash=[5, 3], color="orange", size=1.5)
+    .encode(y="y:Q")
+)
+
+st.altair_chart(delta_chart + thresholds, use_container_width=True)
+
+st.divider()
+
+# ── Section 5: Description Length Distribution ─────────────────────────────────
 st.subheader("Description Length Distribution")
 st.caption(
-    "Character length of transaction descriptions. "
-    "Both splits should have similar patterns if drift is category-only (not description-level)."
+    "Character length of transaction descriptions across both splits. "
+    "Both splits should follow similar patterns if drift is category-only."
 )
 
 df_base["length"] = df_base["description"].str.len()
@@ -165,27 +215,13 @@ len_chart = (
     .encode(
         x=alt.X("length:Q", bin=alt.Bin(maxbins=40), title="Description length (chars)"),
         y=alt.Y("count()", title="Count", stack=None),
-        color=alt.Color("split:N", title="Split"),
-        tooltip=["split:N", "count()"],
+        color=alt.Color(
+            "split:N",
+            title="Split",
+            scale=alt.Scale(range=["#4c9be8", "#e05252"]),
+        ),
+        tooltip=["split:N", "count()", alt.X("length:Q", bin=alt.Bin(maxbins=40))],
     )
-    .properties(height=300)
+    .properties(height=320)
 )
 st.altair_chart(len_chart, use_container_width=True)
-
-st.divider()
-
-# ── Section 5: Data Quality ────────────────────────────────────────────────────
-st.subheader("Data Quality")
-
-c1, c2 = st.columns(2)
-with c1:
-    st.markdown("**Baseline — null counts**")
-    nulls_base = df_base[["description", "category"]].isnull().sum().reset_index()
-    nulls_base.columns = ["Column", "Nulls"]
-    st.dataframe(nulls_base, hide_index=True, use_container_width=True)
-
-with c2:
-    st.markdown("**Drift — null counts**")
-    nulls_drift = df_drift[["description", "category"]].isnull().sum().reset_index()
-    nulls_drift.columns = ["Column", "Nulls"]
-    st.dataframe(nulls_drift, hide_index=True, use_container_width=True)
