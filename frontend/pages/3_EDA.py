@@ -115,31 +115,15 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.markdown("**Baseline split (90%)**")
-    base_chart = (
-        alt.Chart(base_counts)
-        .mark_bar(color="#4c9be8")
-        .encode(
-            x=alt.X("category:N", sort="-y", title=None, axis=alt.Axis(labelAngle=-35)),
-            y=alt.Y("count:Q", title="Count"),
-            tooltip=["category:N", alt.Tooltip("count:Q", format=",")],
-        )
-        .properties(height=320)
-    )
-    st.altair_chart(base_chart, use_container_width=True)
+    base_counts["count"] = base_counts["count"].map("{:,}".format)
+    base_counts.columns = ["Category", "Count"]
+    st.dataframe(base_counts, hide_index=True, use_container_width=True)
 
 with col2:
     st.markdown("**Drift split (10%)**")
-    drift_chart = (
-        alt.Chart(drift_counts)
-        .mark_bar(color="#e05252")
-        .encode(
-            x=alt.X("category:N", sort="-y", title=None, axis=alt.Axis(labelAngle=-35)),
-            y=alt.Y("count:Q", title="Count"),
-            tooltip=["category:N", alt.Tooltip("count:Q", format=",")],
-        )
-        .properties(height=320)
-    )
-    st.altair_chart(drift_chart, use_container_width=True)
+    drift_counts["count"] = drift_counts["count"].map("{:,}".format)
+    drift_counts.columns = ["Category", "Count"]
+    st.dataframe(drift_counts, hide_index=True, use_container_width=True)
 
 st.divider()
 
