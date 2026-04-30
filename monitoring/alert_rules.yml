@@ -1,6 +1,6 @@
 groups:
 
-  # ── Inference / API alerts ──────────────────────────────────────────────────
+  # API alerts
   - name: spendsense_inference
     rules:
       - alert: HighErrorRate
@@ -40,7 +40,7 @@ groups:
             95th-percentile latency on /predict is
             {{ $value | humanizeDuration }} (threshold: 500 ms).
 
-  # ── Training / DVC pipeline alerts ─────────────────────────────────────────
+  # Training alerts
   - name: spendsense_training
     rules:
       - alert: LowTestF1
@@ -76,7 +76,7 @@ groups:
             Training completed in {{ $value | humanizeDuration }}
             (threshold: 2 hours). Check for data size increase or resource issues.
 
-  # ── Pipeline / data quality alerts ─────────────────────────────────────────
+  # Pipeline and Data alerts
   - name: spendsense_pipeline
     rules:
       - alert: DataDriftDetected
@@ -112,7 +112,7 @@ groups:
             The feedback loop appears inactive. Check POST /feedback
             is reachable and the frontend is operational.
 
-  # ── Tail latency and traffic alerts ────────────────────────────────────────
+  # Traffic alerts
   - name: spendsense_traffic
     rules:
       - alert: TailLatencySpike

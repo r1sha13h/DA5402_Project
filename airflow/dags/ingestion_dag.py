@@ -1,16 +1,6 @@
-"""Apache Airflow DAG — SpendSense data ingestion and validation pipeline.
+"""SpendSense ingestion and validation pipeline.
 
-DAG structure
--------------
-verify_raw_data → validate_schema → check_nulls → check_drift → route_on_drift
-    route_on_drift (BranchPythonOperator)
-        ├── drift detected  → combine_data → run_ingest → trigger_dvc → pipeline_complete
-        └── no drift        ─────────────────────────────────────────→ pipeline_complete
-
-The 10% drifted dataset (data/drift/transactions_drift.csv) is polled by
-check_drift.  When drift is detected, combine_data merges the 90% baseline +
-10% drift file + feedback.jsonl corrections into data/raw/transactions.csv so
-the second DVC run trains on the combined corpus.
+Flow: verify → validate → nulls → drift → branch (retrain if needed)
 """
 
 import json
@@ -58,13 +48,7 @@ SCHEDULE = os.environ.get("AIRFLOW_INGESTION_SCHEDULE", "@daily")
 
 
 def _push_pipeline_metrics(**metrics: float) -> None:
-    """Push gauge metrics for this DAG run to the Pushgateway.
-
-    Uses pushadd (POST) so each task's metrics coexist for the same
-    `spendsense_pipeline` job. push_to_gateway (PUT) would overwrite
-    earlier tasks' metrics — e.g. pipeline_complete would wipe
-    pipeline_drift_detected, breaking the DataDriftDetected alert.
-    """
+    """Send metrics to Pushgateway. Uses pushadd to keep existing metrics."""
     if not _PUSHGATEWAY_AVAILABLE:
         return
     try:
@@ -77,7 +61,7 @@ def _push_pipeline_metrics(**metrics: float) -> None:
         logger.warning("Could not push pipeline metrics: %s", exc)
 
 
-# ── Task callables ────────────────────────────────────────────────────────────
+# Tasks
 
 def task_verify_raw_data(**context):
     path = DRIFT_POLL_PATH if os.path.exists(DRIFT_POLL_PATH) else RAW_PATH
@@ -117,7 +101,7 @@ def task_check_nulls(**context):
 
 
 def task_check_drift(**context):
-    """Compare the 10% drift dataset against the baseline from the 90% run."""
+    """Check for shift between 10% drift file and 90% baseline."""
     import pandas as pd  # noqa: PLC0415
 
     if not os.path.exists(DRIFT_POLL_PATH):
@@ -134,13 +118,13 @@ def task_check_drift(**context):
     with open(BASELINE_PATH) as fh:
         baseline = json.load(fh)
 
-    # baseline stores raw counts (not proportions), so normalise before comparing
+    # Compare category proportions (baseline has raw counts)
     baseline_dist = baseline.get("category_distribution", {})
     total_baseline = sum(baseline_dist.values()) or 1
     baseline_norm = {k: v / total_baseline for k, v in baseline_dist.items()}
 
     drift_flags = {}
-    # Check every category that appears in either split to catch new or vanished labels
+    # Track categories with >10% shift
     for cat in set(list(current_dist) + list(baseline_norm)):
         cur  = current_dist.get(cat, 0.0)
         base = baseline_norm.get(cat, 0.0)
@@ -163,7 +147,7 @@ def task_check_drift(**context):
 
 
 def task_route_on_drift(**context):
-    """BranchPythonOperator: route to combine_data on drift, else pipeline_complete."""
+    """Branch to combine_data if drift found, else finish."""
     ti = context["ti"]
     result = ti.xcom_pull(task_ids="check_drift")
     if result and result.get("drift_detected"):
@@ -174,7 +158,7 @@ def task_route_on_drift(**context):
 
 
 def task_combine_data(**context):
-    """Merge 90% baseline + 10% drift + feedback corrections → transactions.csv."""
+    """Merge 90% baseline, 10% drift, and feedback into transactions.csv."""
     import pandas as pd  # noqa: PLC0415
 
     dfs = []
@@ -222,14 +206,12 @@ def task_combine_data(**context):
 
 
 def task_run_ingest(**context):
-    # DVC Run 2 re-runs ingest on the combined dataset anyway, so skip in CI
+    # DVC Run 2 handles ingest in CI
     if os.environ.get("GITHUB_ACTIONS") == "true":
         logger.info("CI mode: skipping run_ingest — DVC pipeline will re-run ingest after combine_data.")
         _push_pipeline_metrics(pipeline_ingest_success=1.0)
         return {"skipped": True, "reason": "ci_mode"}
-    # Clear the ingested directory so the subprocess creates all outputs fresh.
-    # Files left by earlier DVC runs are owned by the host user (uid=1000) and cannot
-    # be overwritten by the forked Airflow task process on this bind mount.
+    # Clear ingested dir to force fresh output (avoid ownership issues on bind mounts)
     ingested_dir = os.path.dirname(INGESTED_PATH)
     if os.path.isdir(ingested_dir):
         try:
@@ -254,14 +236,7 @@ def task_run_ingest(**context):
 
 
 def task_trigger_dvc(**context):
-    """Trigger retraining after drift is detected.
-
-    Priority order:
-    1. GITHUB_ACTIONS=true  → skip; CI runner drives dvc repro directly.
-    2. GITHUB_PAT set       → dispatch workflow_dispatch to GitHub Actions.
-    3. LOCAL_DVC_REPRO=true → run `dvc repro` in-process on the local machine.
-    4. otherwise            → skip with reason=no_pat (default, keeps tests green).
-    """
+    """Start retraining if drift is found."""
     ti = context.get("ti")
     drift_result = ti.xcom_pull(task_ids="check_drift") if ti else None
     drift_detected = drift_result.get("drift_detected", False) if drift_result else False
@@ -279,10 +254,10 @@ def task_trigger_dvc(**context):
     github_pat  = os.environ.get("GITHUB_PAT", "")
     github_repo = os.environ.get("GITHUB_REPO", "r1sha13h/DA5402_Project")
 
+    # Run DVC repro locally if flag set
     if not github_pat:
-        # Local UI trigger with LOCAL_DVC_REPRO=true → run the pipeline in-process
         if os.environ.get("LOCAL_DVC_REPRO") == "true":
-            logger.info("LOCAL_DVC_REPRO=true — running dvc repro on local machine.")
+            logger.info("LOCAL_DVC_REPRO=true — running dvc repro locally.")
             model_path = os.path.join(PROJECT_ROOT, "models", "latest_model.pt")
             env = os.environ.copy()
             if os.path.exists(model_path):
@@ -330,20 +305,15 @@ def task_trigger_dvc(**context):
 
 
 def task_pipeline_complete(**context):
+    """Mark run success and reset drift gauge after alert window."""
     logger.info("Pipeline complete.")
     _push_pipeline_metrics(pipeline_complete=1.0)
 
-    # If drift was detected, the metric is currently 1 in Pushgateway and the
-    # DataDriftDetected alert is heading toward firing. Wait long enough for
-    # Prometheus to scrape (≤15s), evaluate the rule (≤15s), and Alertmanager
-    # to honour group_wait (30s) before reseting the gauge. Resetting earlier
-    # would race with email dispatch and could silently resolve the alert.
-    # After reset, the alert clears so repeat_interval re-notifications stop.
+    # Wait for alert cycle if drift found (scrapes/rules/notifications)
     ti = context.get("ti")
     drift_result = ti.xcom_pull(task_ids="check_drift") if ti else None
     if drift_result and drift_result.get("drift_detected"):
-        # In CI the whole stack is torn down right after the run, so Pushgateway
-        # is wiped and the alert auto-resolves anyway — skip the 75s wait.
+        # Skip wait in CI (stack is short-lived)
         if os.environ.get("GITHUB_ACTIONS", "").lower() == "true":
             logger.info("Drift detected — skipping 75s alert-wait (GITHUB_ACTIONS=true).")
             _push_pipeline_metrics(pipeline_drift_detected=0.0)
@@ -355,7 +325,7 @@ def task_pipeline_complete(**context):
     return {"status": "complete"}
 
 
-# ── DAG definition ────────────────────────────────────────────────────────────
+# DAG
 
 with DAG(
     dag_id="spendsense_ingestion_pipeline",
@@ -412,7 +382,7 @@ with DAG(
         trigger_rule="none_failed_min_one_success",
     )
 
-    # ── Pipeline dependency chain ─────────────────────────────────────────────
+    # Dependencies
     (
         verify_raw_data
         >> validate_schema
